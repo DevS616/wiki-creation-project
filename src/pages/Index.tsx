@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import Icon from '@/components/ui/icon';
+import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft } from 'lucide-react';
 
 interface Article {
   id: number;
@@ -79,7 +79,7 @@ const Index = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
-                <Icon name="Flame" size={24} className="text-white" />
+                <Flame size={24} className="text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Wiki Devilrust</h1>
@@ -92,7 +92,7 @@ const Index = () => {
               rel="noopener noreferrer"
               className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center gap-2"
             >
-              <Icon name="ExternalLink" size={18} />
+              <ExternalLink size={18} />
               Сайт сервера
             </a>
           </div>
@@ -105,7 +105,7 @@ const Index = () => {
           <aside className="lg:col-span-1">
             <Card className="p-4 bg-slate-800/50 border-slate-700 sticky top-24">
               <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Icon name="Layers" size={20} />
+                <Layers size={20} />
                 Категории
               </h2>
               <div className="space-y-2">
@@ -129,7 +129,7 @@ const Index = () => {
 
               <div className="mt-6 pt-6 border-t border-slate-700">
                 <h3 className="text-sm font-semibold text-slate-400 mb-3 flex items-center gap-2">
-                  <Icon name="Info" size={16} />
+                  <Info size={16} />
                   Статистика
                 </h3>
                 <div className="space-y-2 text-sm">
@@ -153,8 +153,7 @@ const Index = () => {
                 {/* Search */}
                 <div className="mb-6">
                   <div className="relative">
-                    <Icon 
-                      name="Search" 
+                    <Search 
                       size={20} 
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" 
                     />
@@ -180,8 +179,7 @@ const Index = () => {
                         <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30">
                           {article.category}
                         </Badge>
-                        <Icon 
-                          name="ChevronRight" 
+                        <ChevronRight 
                           size={20} 
                           className="text-slate-400 group-hover:text-orange-400 transition-colors" 
                         />
@@ -198,7 +196,7 @@ const Index = () => {
 
                 {filteredArticles.length === 0 && (
                   <Card className="p-12 bg-slate-800/50 border-slate-700 text-center">
-                    <Icon name="SearchX" size={48} className="mx-auto text-slate-600 mb-4" />
+                    <SearchX size={48} className="mx-auto text-slate-600 mb-4" />
                     <p className="text-slate-400 text-lg">Статьи не найдены</p>
                     <p className="text-slate-500 text-sm mt-2">Попробуйте изменить параметры поиска</p>
                   </Card>
@@ -211,7 +209,7 @@ const Index = () => {
                   onClick={() => setSelectedArticle(null)}
                   className="mb-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
                 >
-                  <Icon name="ArrowLeft" size={20} />
+                  <ArrowLeft size={20} />
                   Назад к списку
                 </button>
                 
