@@ -91,10 +91,7 @@ const Index = () => {
               target="_blank" 
               rel="noopener noreferrer"
               className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center gap-2"
-            >
-              <ExternalLink size={18} />
-              Сайт сервера
-            </a>
+            >Сайт проекта</a>
           </div>
         </div>
       </header>
