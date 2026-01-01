@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft } from 'lucide-react';
+import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, BookOpen, Map, Wrench } from 'lucide-react';
 
 interface Article {
   id: number;
@@ -181,10 +181,19 @@ const Index = () => {
                           className="text-slate-400 group-hover:text-orange-400 transition-colors" 
                         />
                       </div>
-                      <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-orange-400 transition-colors">
-                        {article.title}
-                      </h3>
-                      <p className="text-slate-400 text-sm">
+                      <div className="flex items-start gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-lg bg-orange-600/10 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/20 transition-colors">
+                          {article.category === 'Основное' && <BookOpen size={20} className="text-orange-400" />}
+                          {article.category === 'Гайды' && <Map size={20} className="text-orange-400" />}
+                          {article.category === 'Механики' && <Wrench size={20} className="text-orange-400" />}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold text-white group-hover:text-orange-400 transition-colors">
+                            {article.title}
+                          </h3>
+                        </div>
+                      </div>
+                      <p className="text-slate-400 text-sm ml-13">
                         {article.description}
                       </p>
                     </Card>
