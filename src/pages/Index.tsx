@@ -1,103 +1,73 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, BookOpen, Map, Wrench, Package, Sparkles } from 'lucide-react';
 
+const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
+
 interface Article {
   id: number;
   title: string;
-  category: string;
+  category_name: string;
+  category_icon: string;
   description: string;
   content: string;
 }
 
-const articles: Article[] = [
-  {
-    id: 1,
-    title: 'Правила сервера',
-    category: 'Основное',
-    description: 'Общие правила поведения на сервере Devilrust',
-    content: 'Основные правила сервера, которые должен знать каждый игрок...'
-  },
-  {
-    id: 2,
-    title: 'Начало игры',
-    category: 'Гайды',
-    description: 'С чего начать новичку на сервере',
-    content: 'Пошаговое руководство для новых игроков...'
-  },
-  {
-    id: 3,
-    title: 'Система рейдов',
-    category: 'Механики',
-    description: 'Как устроены рейды на сервере',
-    content: 'Подробное описание системы рейдов...'
-  },
-  {
-    id: 4,
-    title: 'Экономика сервера',
-    category: 'Механики',
-    description: 'Торговля, магазины и валюта',
-    content: 'Информация об экономической системе сервера...'
-  },
-  {
-    id: 5,
-    title: 'Команды администрации',
-    category: 'Основное',
-    description: 'Список доступных команд',
-    content: 'Все команды, которые можно использовать на сервере...'
-  },
-  {
-    id: 6,
-    title: 'Крафт предметов',
-    category: 'Гайды',
-    description: 'Уникальные рецепты крафта',
-    content: 'Особые рецепты крафта, доступные на сервере...'
-  },
-  {
-    id: 7,
-    title: 'Кастомное оружие',
-    category: 'Кастомные предметы',
-    description: 'Уникальное оружие с особыми характеристиками',
-    content: 'На сервере доступно эксклюзивное кастомное оружие...'
-  },
-  {
-    id: 8,
-    title: 'Уникальная броня',
-    category: 'Кастомные предметы',
-    description: 'Специальная броня с дополнительными бонусами',
-    content: 'Описание кастомной брони и способов её получения...'
-  },
-  {
-    id: 9,
-    title: 'PvP турниры',
-    category: 'Развлекательные ивенты',
-    description: 'Регулярные турниры с призами',
-    content: 'Информация о PvP турнирах и наградах...'
-  },
-  {
-    id: 10,
-    title: 'Квесты и задания',
-    category: 'Развлекательные ивенты',
-    description: 'Еженедельные квесты для игроков',
-    content: 'Список активных квестов и способы их выполнения...'
-  },
-];
-
-const categories = ['Все', 'Основное', 'Гайды', 'Механики', 'Кастомные предметы', 'Развлекательные ивенты'];
+interface Category {
+  id: number;
+  name: string;
+  icon: string;
+}
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Все');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Все']);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [articlesRes, categoriesRes] = await Promise.all([
+        fetch(`${API_URL}?action=articles`),
+        fetch(`${API_URL}?action=categories`)
+      ]);
+
+      const articlesData = await articlesRes.json();
+      const categoriesData = await categoriesRes.json();
+
+      setArticles(articlesData.articles || []);
+      
+      const categoryNames = categoriesData.categories?.map((c: Category) => c.name) || [];
+      setCategories(['Все', ...categoryNames]);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredArticles = articles.filter(article => {
     const matchesSearch = article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          article.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'Все' || article.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'Все' || article.category_name === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Загрузка...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -206,7 +176,7 @@ const Index = () => {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30">
-                          {article.category}
+                          {article.category_name}
                         </Badge>
                         <ChevronRight 
                           size={20} 
@@ -215,11 +185,11 @@ const Index = () => {
                       </div>
                       <div className="flex items-start gap-3 mb-2">
                         <div className="w-10 h-10 rounded-lg bg-orange-600/10 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/20 transition-colors">
-                          {article.category === 'Основное' && <BookOpen size={20} className="text-orange-400" />}
-                          {article.category === 'Гайды' && <Map size={20} className="text-orange-400" />}
-                          {article.category === 'Механики' && <Wrench size={20} className="text-orange-400" />}
-                          {article.category === 'Кастомные предметы' && <Package size={20} className="text-orange-400" />}
-                          {article.category === 'Развлекательные ивенты' && <Sparkles size={20} className="text-orange-400" />}
+                          {article.category_name === 'Основное' && <BookOpen size={20} className="text-orange-400" />}
+                          {article.category_name === 'Гайды' && <Map size={20} className="text-orange-400" />}
+                          {article.category_name === 'Механики' && <Wrench size={20} className="text-orange-400" />}
+                          {article.category_name === 'Кастомные предметы' && <Package size={20} className="text-orange-400" />}
+                          {article.category_name === 'Развлекательные ивенты' && <Sparkles size={20} className="text-orange-400" />}
                         </div>
                         <div className="flex-1">
                           <h3 className="text-xl font-semibold text-white group-hover:text-orange-400 transition-colors">

@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Get Steam auth URL",
+      "method": "GET",
+      "path": "/?return_url=http://localhost:5173/adm",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "auth_url": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

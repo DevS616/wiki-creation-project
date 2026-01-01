@@ -1,0 +1,410 @@
+import json
+import os
+import psycopg2
+from datetime import datetime
+
+def handler(event: dict, context) -> dict:
+    """API для управления статьями и категориями Wiki"""
+    
+    method = event.get('httpMethod', 'GET')
+    query = event.get('queryStringParameters') or {}
+    action = query.get('action', '')
+    
+    if method == 'OPTIONS':
+        return cors_response(200, '')
+    
+    # Роутинг по параметру action
+    if action == 'categories':
+        return handle_categories(method, event)
+    elif action == 'articles':
+        return handle_articles(method, event)
+    elif action == 'users':
+        return handle_users(method, event)
+    
+    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users'})
+
+
+def handle_categories(method: str, event: dict) -> dict:
+    """Управление категориями"""
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        if method == 'GET':
+            # Получить все категории
+            cur.execute("SELECT id, name, icon, created_at FROM categories ORDER BY name")
+            categories = cur.fetchall()
+            
+            return cors_response(200, {
+                'categories': [
+                    {'id': c[0], 'name': c[1], 'icon': c[2], 'created_at': c[3].isoformat() if c[3] else None}
+                    for c in categories
+                ]
+            })
+        
+        elif method == 'POST':
+            # Создать категорию (только для администратора)
+            body = json.loads(event.get('body', '{}'))
+            user = validate_user(event)
+            
+            if not user or user['role'] != 'administrator':
+                return cors_response(403, {'error': 'Access denied'})
+            
+            name = body.get('name')
+            icon = body.get('icon', 'BookOpen')
+            
+            if not name:
+                return cors_response(400, {'error': 'Name is required'})
+            
+            cur.execute(
+                "INSERT INTO categories (name, icon) VALUES (%s, %s) RETURNING id, name, icon, created_at",
+                (name, icon)
+            )
+            new_category = cur.fetchone()
+            conn.commit()
+            
+            return cors_response(201, {
+                'category': {
+                    'id': new_category[0],
+                    'name': new_category[1],
+                    'icon': new_category[2],
+                    'created_at': new_category[3].isoformat()
+                }
+            })
+        
+        elif method == 'DELETE':
+            # Удалить категорию (только администратор)
+            user = validate_user(event)
+            
+            if not user or user['role'] != 'administrator':
+                return cors_response(403, {'error': 'Access denied'})
+            
+            query = event.get('queryStringParameters', {})
+            category_id = query.get('id')
+            
+            if not category_id:
+                return cors_response(400, {'error': 'ID is required'})
+            
+            cur.execute("UPDATE articles SET category_id = NULL WHERE category_id = %s", (category_id,))
+            cur.execute("DELETE FROM categories WHERE id = %s", (category_id,))
+            conn.commit()
+            
+            return cors_response(200, {'success': True})
+        
+    finally:
+        cur.close()
+        conn.close()
+    
+    return cors_response(405, {'error': 'Method not allowed'})
+
+
+def handle_articles(method: str, event: dict) -> dict:
+    """Управление статьями"""
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        if method == 'GET':
+            # Получить все статьи
+            cur.execute("""
+                SELECT a.id, a.title, a.description, a.content, a.category_id, 
+                       c.name as category_name, c.icon as category_icon,
+                       a.author_id, u.username as author_name,
+                       a.created_at, a.updated_at
+                FROM articles a
+                LEFT JOIN categories c ON a.category_id = c.id
+                LEFT JOIN users u ON a.author_id = u.id
+                ORDER BY a.updated_at DESC
+            """)
+            articles = cur.fetchall()
+            
+            return cors_response(200, {
+                'articles': [
+                    {
+                        'id': a[0],
+                        'title': a[1],
+                        'description': a[2],
+                        'content': a[3],
+                        'category_id': a[4],
+                        'category_name': a[5],
+                        'category_icon': a[6],
+                        'author_id': a[7],
+                        'author_name': a[8],
+                        'created_at': a[9].isoformat() if a[9] else None,
+                        'updated_at': a[10].isoformat() if a[10] else None
+                    }
+                    for a in articles
+                ]
+            })
+        
+        elif method == 'POST':
+            # Создать статью (editor, moderator, administrator)
+            body = json.loads(event.get('body', '{}'))
+            user = validate_user(event)
+            
+            if not user:
+                return cors_response(403, {'error': 'Authentication required'})
+            
+            title = body.get('title')
+            description = body.get('description')
+            content = body.get('content')
+            category_id = body.get('category_id')
+            
+            if not all([title, description, content]):
+                return cors_response(400, {'error': 'Missing required fields'})
+            
+            cur.execute(
+                """INSERT INTO articles (title, description, content, category_id, author_id) 
+                   VALUES (%s, %s, %s, %s, %s) 
+                   RETURNING id, title, description, content, category_id, author_id, created_at, updated_at""",
+                (title, description, content, category_id, user['id'])
+            )
+            new_article = cur.fetchone()
+            conn.commit()
+            
+            return cors_response(201, {
+                'article': {
+                    'id': new_article[0],
+                    'title': new_article[1],
+                    'description': new_article[2],
+                    'content': new_article[3],
+                    'category_id': new_article[4],
+                    'author_id': new_article[5],
+                    'created_at': new_article[6].isoformat(),
+                    'updated_at': new_article[7].isoformat()
+                }
+            })
+        
+        elif method == 'PUT':
+            # Обновить статью (editor, moderator, administrator)
+            body = json.loads(event.get('body', '{}'))
+            user = validate_user(event)
+            
+            if not user:
+                return cors_response(403, {'error': 'Authentication required'})
+            
+            article_id = body.get('id')
+            
+            if not article_id:
+                return cors_response(400, {'error': 'Article ID is required'})
+            
+            # Проверяем права
+            cur.execute("SELECT author_id FROM articles WHERE id = %s", (article_id,))
+            article = cur.fetchone()
+            
+            if not article:
+                return cors_response(404, {'error': 'Article not found'})
+            
+            # Только автор или администратор может редактировать
+            if article[0] != user['id'] and user['role'] != 'administrator':
+                return cors_response(403, {'error': 'Access denied'})
+            
+            updates = []
+            params = []
+            
+            if 'title' in body:
+                updates.append("title = %s")
+                params.append(body['title'])
+            
+            if 'description' in body:
+                updates.append("description = %s")
+                params.append(body['description'])
+            
+            if 'content' in body:
+                updates.append("content = %s")
+                params.append(body['content'])
+            
+            if 'category_id' in body:
+                updates.append("category_id = %s")
+                params.append(body['category_id'])
+            
+            if updates:
+                updates.append("updated_at = CURRENT_TIMESTAMP")
+                params.append(article_id)
+                
+                query = f"UPDATE articles SET {', '.join(updates)} WHERE id = %s"
+                cur.execute(query, params)
+                conn.commit()
+            
+            return cors_response(200, {'success': True})
+        
+        elif method == 'DELETE':
+            # Удалить статью (moderator, administrator)
+            user = validate_user(event)
+            
+            if not user or user['role'] not in ['moderator', 'administrator']:
+                return cors_response(403, {'error': 'Access denied'})
+            
+            query = event.get('queryStringParameters', {})
+            article_id = query.get('id')
+            
+            if not article_id:
+                return cors_response(400, {'error': 'ID is required'})
+            
+            cur.execute("DELETE FROM articles WHERE id = %s", (article_id,))
+            conn.commit()
+            
+            return cors_response(200, {'success': True})
+        
+    finally:
+        cur.close()
+        conn.close()
+    
+    return cors_response(405, {'error': 'Method not allowed'})
+
+
+def handle_users(method: str, event: dict) -> dict:
+    """Управление пользователями (только для супер-админа)"""
+    
+    user = validate_user(event)
+    
+    # Только суперадминистратор
+    if not user or user['steam_id'] != '76561198995407853':
+        return cors_response(403, {'error': 'Access denied'})
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        if method == 'GET':
+            # Получить всех пользователей
+            cur.execute("""
+                SELECT id, steam_id, username, avatar_url, role, created_at, updated_at
+                FROM users
+                ORDER BY created_at DESC
+            """)
+            users = cur.fetchall()
+            
+            return cors_response(200, {
+                'users': [
+                    {
+                        'id': u[0],
+                        'steam_id': u[1],
+                        'username': u[2],
+                        'avatar_url': u[3],
+                        'role': u[4],
+                        'created_at': u[5].isoformat() if u[5] else None,
+                        'updated_at': u[6].isoformat() if u[6] else None
+                    }
+                    for u in users
+                ]
+            })
+        
+        elif method == 'PUT':
+            # Обновить роль пользователя
+            body = json.loads(event.get('body', '{}'))
+            user_id = body.get('id')
+            new_role = body.get('role')
+            
+            if not user_id or not new_role:
+                return cors_response(400, {'error': 'ID and role are required'})
+            
+            if new_role not in ['editor', 'moderator', 'administrator']:
+                return cors_response(400, {'error': 'Invalid role'})
+            
+            cur.execute(
+                "UPDATE users SET role = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (new_role, user_id)
+            )
+            conn.commit()
+            
+            return cors_response(200, {'success': True})
+        
+        elif method == 'DELETE':
+            # Удалить пользователя
+            query = event.get('queryStringParameters', {})
+            user_id = query.get('id')
+            
+            if not user_id:
+                return cors_response(400, {'error': 'ID is required'})
+            
+            # Нельзя удалить супер-админа
+            cur.execute("SELECT steam_id FROM users WHERE id = %s", (user_id,))
+            target_user = cur.fetchone()
+            
+            if target_user and target_user[0] == '76561198995407853':
+                return cors_response(400, {'error': 'Cannot delete super admin'})
+            
+            cur.execute("UPDATE articles SET author_id = NULL WHERE author_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            conn.commit()
+            
+            return cors_response(200, {'success': True})
+        
+    finally:
+        cur.close()
+        conn.close()
+    
+    return cors_response(405, {'error': 'Method not allowed'})
+
+
+def validate_user(event: dict) -> dict:
+    """Проверяет авторизацию пользователя по токену"""
+    
+    # Получаем токен из заголовка
+    headers = event.get('headers', {})
+    auth_header = headers.get('X-Authorization', headers.get('authorization', ''))
+    
+    if not auth_header:
+        return None
+    
+    # Извлекаем токен
+    token = auth_header.replace('Bearer ', '').strip()
+    
+    if not token:
+        return None
+    
+    # Для демонстрации: декодируем простой токен вида "steamid:userid"
+    # В продакшене используйте JWT или другой безопасный метод
+    try:
+        parts = token.split(':')
+        if len(parts) >= 2:
+            steam_id = parts[0]
+            user_id = parts[1]
+            
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            cur.execute(
+                "SELECT id, steam_id, username, avatar_url, role FROM users WHERE steam_id = %s AND id = %s",
+                (steam_id, user_id)
+            )
+            user_data = cur.fetchone()
+            
+            cur.close()
+            conn.close()
+            
+            if user_data:
+                return {
+                    'id': user_data[0],
+                    'steam_id': user_data[1],
+                    'username': user_data[2],
+                    'avatar_url': user_data[3],
+                    'role': user_data[4]
+                }
+    except:
+        pass
+    
+    return None
+
+
+def get_db_connection():
+    """Создает подключение к БД"""
+    return psycopg2.connect(os.environ['DATABASE_URL'])
+
+
+def cors_response(status_code: int, body):
+    """Создает ответ с CORS заголовками"""
+    return {
+        'statusCode': status_code,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Authorization'
+        },
+        'body': json.dumps(body) if isinstance(body, dict) else body,
+        'isBase64Encoded': False
+    }
