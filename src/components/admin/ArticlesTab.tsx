@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Pencil, Trash2, Link, Check } from 'lucide-react';
-import SimpleTextEditor from '@/components/SimpleTextEditor';
+import RichTextEditor from '@/components/RichTextEditor';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -193,8 +193,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                   />
                 </div>
                 <div>
-                  <Label className="text-white">Контент</Label>
-                  <SimpleTextEditor
+                  <RichTextEditor
                     value={articleContent}
                     onChange={setArticleContent}
                   />
