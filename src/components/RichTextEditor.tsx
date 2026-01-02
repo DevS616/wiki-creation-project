@@ -140,27 +140,29 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
   };
 
   const insertTable = () => {
-    const tableHtml = `<table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-  <thead>
-    <tr style="background-color: #334155;">
-      <th style="border: 1px solid #475569; padding: 12px; color: #fff;">Заголовок 1</th>
-      <th style="border: 1px solid #475569; padding: 12px; color: #fff;">Заголовок 2</th>
-      <th style="border: 1px solid #475569; padding: 12px; color: #fff;">Заголовок 3</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="border: 1px solid #475569; padding: 12px;">Ячейка 1</td>
-      <td style="border: 1px solid #475569; padding: 12px;">Ячейка 2</td>
-      <td style="border: 1px solid #475569; padding: 12px;">Ячейка 3</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid #475569; padding: 12px;">Ячейка 4</td>
-      <td style="border: 1px solid #475569; padding: 12px;">Ячейка 5</td>
-      <td style="border: 1px solid #475569; padding: 12px;">Ячейка 6</td>
-    </tr>
-  </tbody>
-</table>`;
+    const tableHtml = `<div style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 16px 0;">
+  <table style="width: 100%; min-width: 500px; border-collapse: collapse;">
+    <thead>
+      <tr style="background-color: #334155;">
+        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок 1</th>
+        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок 2</th>
+        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок 3</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 1</td>
+        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 2</td>
+        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 3</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 4</td>
+        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 5</td>
+        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 6</td>
+      </tr>
+    </tbody>
+  </table>
+</div>`;
     onChange(value + tableHtml);
   };
 
