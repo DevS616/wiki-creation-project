@@ -249,6 +249,40 @@ const AdminPanel = () => {
     }
   };
 
+  const handleAddUser = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      steam_id: formData.get('steam_id'),
+      username: formData.get('username'),
+      role: formData.get('role')
+    };
+
+    try {
+      const response = await fetch(`${API_URL}?action=users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add user');
+      }
+
+      setShowUserDialog(false);
+      loadData();
+    } catch (err) {
+      console.error('Failed to add user:', err);
+      alert('Ошибка при добавлении пользователя');
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -618,7 +652,70 @@ const AdminPanel = () => {
           {isSuperAdmin && (
             <TabsContent value="users">
               <Card className="p-6 bg-slate-800/50 border-slate-700">
-                <h2 className="text-2xl font-bold text-white mb-6">Управление пользователями</h2>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-white">Управление пользователями</h2>
+                  <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-orange-600 hover:bg-orange-700">
+                        <Plus size={16} className="mr-2" />
+                        Добавить пользователя
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-slate-800 border-slate-700">
+                      <DialogHeader>
+                        <DialogTitle className="text-white">Новый пользователь</DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleAddUser} className="space-y-4">
+                        <div>
+                          <Label htmlFor="steam_id" className="text-white">Steam ID</Label>
+                          <Input
+                            id="steam_id"
+                            name="steam_id"
+                            required
+                            placeholder="76561198000000000"
+                            className="bg-slate-900 border-slate-700 text-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="username" className="text-white">Имя пользователя</Label>
+                          <Input
+                            id="username"
+                            name="username"
+                            required
+                            placeholder="Введите имя"
+                            className="bg-slate-900 border-slate-700 text-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="role" className="text-white">Роль</Label>
+                          <Select name="role" defaultValue="editor" required>
+                            <SelectTrigger className="bg-slate-900 border-slate-700 text-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-slate-700">
+                              <SelectItem value="editor" className="text-white">Редактор</SelectItem>
+                              <SelectItem value="moderator" className="text-white">Модератор</SelectItem>
+                              <SelectItem value="administrator" className="text-white">Администратор</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="submit" className="bg-orange-600 hover:bg-orange-700">
+                            Добавить
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowUserDialog(false)}
+                            className="border-slate-600 bg-slate-900/80 text-white hover:bg-slate-700 hover:border-slate-500"
+                          >
+                            Отмена
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
 
                 <div className="space-y-4">
                   {users.map(user => (
