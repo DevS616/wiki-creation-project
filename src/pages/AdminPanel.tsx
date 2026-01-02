@@ -284,6 +284,29 @@ const AdminPanel = () => {
     }
   };
 
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm('Вы уверены, что хотите удалить этого пользователя?')) {
+      return;
+    }
+
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+
+    try {
+      await fetch(`${API_URL}?action=users&id=${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      alert('Ошибка при удалении пользователя');
+    }
+  };
+
   if (!currentUser) {
     return null;
   }
@@ -729,6 +752,7 @@ const AdminPanel = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-slate-900 border-slate-700">
+                              <SelectItem value="no_access" className="text-white">Без доступа</SelectItem>
                               <SelectItem value="editor" className="text-white">Редактор</SelectItem>
                               <SelectItem value="moderator" className="text-white">Модератор</SelectItem>
                               <SelectItem value="administrator" className="text-white">Администратор</SelectItem>
@@ -768,19 +792,30 @@ const AdminPanel = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           {user.steam_id !== '76561198995407853' ? (
-                            <Select
-                              value={user.role}
-                              onValueChange={(role) => handleUpdateUserRole(user.id, role)}
-                            >
-                              <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-white">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-slate-900 border-slate-700">
-                                <SelectItem value="editor" className="text-white">Редактор</SelectItem>
-                                <SelectItem value="moderator" className="text-white">Модератор</SelectItem>
-                                <SelectItem value="administrator" className="text-white">Администратор</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <>
+                              <Select
+                                value={user.role}
+                                onValueChange={(role) => handleUpdateUserRole(user.id, role)}
+                              >
+                                <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-white">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-900 border-slate-700">
+                                  <SelectItem value="no_access" className="text-white">Без доступа</SelectItem>
+                                  <SelectItem value="editor" className="text-white">Редактор</SelectItem>
+                                  <SelectItem value="moderator" className="text-white">Модератор</SelectItem>
+                                  <SelectItem value="administrator" className="text-white">Администратор</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              >
+                                <Trash2 size={18} />
+                              </Button>
+                            </>
                           ) : (
                             <span className="px-3 py-2 bg-orange-600/20 text-orange-400 rounded-md text-sm font-medium">
                               Супер-админ

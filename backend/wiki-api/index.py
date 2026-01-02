@@ -297,7 +297,7 @@ def handle_users(method: str, event: dict) -> dict:
             if not steam_id or not username:
                 return cors_response(400, {'error': 'Steam ID and username are required'})
             
-            if role not in ['editor', 'moderator', 'administrator']:
+            if role not in ['no_access', 'editor', 'moderator', 'administrator']:
                 return cors_response(400, {'error': 'Invalid role'})
             
             # Проверяем, не существует ли уже такой пользователь
@@ -330,7 +330,7 @@ def handle_users(method: str, event: dict) -> dict:
             if not user_id or not new_role:
                 return cors_response(400, {'error': 'ID and role are required'})
             
-            if new_role not in ['editor', 'moderator', 'administrator']:
+            if new_role not in ['no_access', 'editor', 'moderator', 'administrator']:
                 return cors_response(400, {'error': 'Invalid role'})
             
             cur.execute(
