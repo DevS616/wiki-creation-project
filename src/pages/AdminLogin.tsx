@@ -29,11 +29,6 @@ const AdminLogin = () => {
       const response = await fetch(`${STEAM_AUTH_URL}?${queryString}`);
       const data = await response.json();
 
-      if (response.status === 403) {
-        setError(data.error || 'Доступ запрещён. Обратитесь к администратору для получения доступа.');
-        return;
-      }
-
       if (data.session_token && data.user) {
         // Сохраняем токен и данные пользователя
         const token = `${data.user.steam_id}:${data.user.id}`;

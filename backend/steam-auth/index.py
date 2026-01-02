@@ -107,20 +107,6 @@ def handle_steam_callback(params: dict) -> dict:
     # Сохраняем/обновляем пользователя в БД
     user = save_user_to_db(steam_id, user_data)
     
-    # Если пользователь не найден в базе и это не супер-админ - доступ запрещён
-    if not user:
-        return {
-            'statusCode': 403,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'error': 'Доступ запрещён. Вас должен добавить администратор.'
-            }),
-            'isBase64Encoded': False
-        }
-    
     # Создаем токен сессии
     session_token = create_session_token(user)
     
@@ -183,7 +169,7 @@ def get_steam_user_data(steam_id: str) -> dict:
 
 
 def save_user_to_db(steam_id: str, user_data: dict) -> dict:
-    """Сохраняет или обновляет пользователя в БД. Доступ только для супер-админа и добавленных пользователей"""
+    """Сохраняет или обновляет пользователя в БД. Новым пользователям присваивается роль 'no_access'"""
     
     conn = psycopg2.connect(os.environ['DATABASE_URL'])
     cur = conn.cursor()
@@ -212,25 +198,27 @@ def save_user_to_db(steam_id: str, user_data: dict) -> dict:
                 'role': existing[4]
             }
         else:
-            # Если это супер-админ - создаем его автоматически
+            # Если это супер-админ - создаем его с ролью administrator
             if steam_id == '76561198995407853':
-                cur.execute(
-                    "INSERT INTO users (steam_id, username, avatar_url, role) VALUES (%s, %s, %s, %s) RETURNING id, role",
-                    (steam_id, user_data['username'], user_data['avatar_url'], 'administrator')
-                )
-                new_user = cur.fetchone()
-                conn.commit()
-                
-                return {
-                    'id': new_user[0],
-                    'steam_id': steam_id,
-                    'username': user_data['username'],
-                    'avatar_url': user_data['avatar_url'],
-                    'role': new_user[1]
-                }
+                role = 'administrator'
             else:
-                # Все остальные - доступ запрещён
-                return None
+                # Все остальные получают роль "Без доступа"
+                role = 'no_access'
+            
+            cur.execute(
+                "INSERT INTO users (steam_id, username, avatar_url, role) VALUES (%s, %s, %s, %s) RETURNING id, role",
+                (steam_id, user_data['username'], user_data['avatar_url'], role)
+            )
+            new_user = cur.fetchone()
+            conn.commit()
+            
+            return {
+                'id': new_user[0],
+                'steam_id': steam_id,
+                'username': user_data['username'],
+                'avatar_url': user_data['avatar_url'],
+                'role': new_user[1]
+            }
     finally:
         cur.close()
         conn.close()

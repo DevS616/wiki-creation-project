@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Flame, Plus, Pencil, Trash2, Users, FileText, Layers, LogOut, Link, Check } from 'lucide-react';
+import Icon from '@/components/ui/icon';
 import SimpleTextEditor from '@/components/SimpleTextEditor';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
@@ -285,6 +286,41 @@ const AdminPanel = () => {
 
   if (!currentUser) {
     return null;
+  }
+
+  // Если у пользователя нет доступа - показываем блокирующее окно
+  if (currentUser.role === 'no_access') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-8 bg-slate-800/50 border-slate-700 text-center">
+          <div className="mb-6">
+            <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Icon name="ShieldAlert" size={48} className="text-red-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">Доступ запрещён</h2>
+            <p className="text-slate-400 mb-4">
+              У вас нет прав для доступа к админ-панели. 
+              <br />
+              Обратитесь к администратору для получения доступа.
+            </p>
+            <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 mb-6">
+              <p className="text-sm text-slate-500 mb-1">Ваш Steam ID:</p>
+              <p className="text-white font-mono text-sm">{currentUser.steam_id}</p>
+            </div>
+          </div>
+          <Button
+            onClick={() => {
+              localStorage.removeItem('admin_token');
+              localStorage.removeItem('admin_user');
+              navigate('/adm');
+            }}
+            className="w-full bg-orange-600 hover:bg-orange-700"
+          >
+            Выйти
+          </Button>
+        </Card>
+      </div>
+    );
   }
 
   const canEdit = ['editor', 'moderator', 'administrator'].includes(currentUser.role);
