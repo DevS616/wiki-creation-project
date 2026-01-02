@@ -13,15 +13,16 @@ def handler(event: dict, context) -> dict:
     if method == 'OPTIONS':
         return cors_response(200, '')
     
-    # Роутинг по параметру action
     if action == 'categories':
         return handle_categories(method, event)
     elif action == 'articles':
         return handle_articles(method, event)
     elif action == 'users':
         return handle_users(method, event)
+    elif action == 'upload_image':
+        return handle_upload_image(method, event)
     
-    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users'})
+    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users|upload_image'})
 
 
 def handle_categories(method: str, event: dict) -> dict:
@@ -32,7 +33,6 @@ def handle_categories(method: str, event: dict) -> dict:
     
     try:
         if method == 'GET':
-            # Получить все категории
             cur.execute("SELECT id, name, icon, created_at FROM categories ORDER BY name")
             categories = cur.fetchall()
             
@@ -44,7 +44,6 @@ def handle_categories(method: str, event: dict) -> dict:
             })
         
         elif method == 'POST':
-            # Создать категорию (только для администратора)
             body = json.loads(event.get('body', '{}'))
             user = validate_user(event)
             
@@ -74,7 +73,6 @@ def handle_categories(method: str, event: dict) -> dict:
             })
         
         elif method == 'DELETE':
-            # Удалить категорию (только администратор)
             user = validate_user(event)
             
             if not user or user['role'] != 'administrator':
@@ -86,8 +84,8 @@ def handle_categories(method: str, event: dict) -> dict:
             if not category_id:
                 return cors_response(400, {'error': 'ID is required'})
             
-            cur.execute("UPDATE articles SET category_id = NULL WHERE category_id = %s", (category_id,))
-            cur.execute("DELETE FROM categories WHERE id = %s", (category_id,))
+            cur.execute("UPDATE articles SET category_id = NULL WHERE category_id = %s", (int(category_id),))
+            cur.execute("DELETE FROM categories WHERE id = %s", (int(category_id),))
             conn.commit()
             
             return cors_response(200, {'success': True})
@@ -107,12 +105,11 @@ def handle_articles(method: str, event: dict) -> dict:
     
     try:
         if method == 'GET':
-            # Получить все статьи
             cur.execute("""
                 SELECT a.id, a.title, a.description, a.content, a.category_id, 
                        c.name as category_name, c.icon as category_icon,
                        a.author_id, u.username as author_name,
-                       a.created_at, a.updated_at
+                       a.created_at, a.updated_at, a.preview_image
                 FROM articles a
                 LEFT JOIN categories c ON a.category_id = c.id
                 LEFT JOIN users u ON a.author_id = u.id
@@ -133,14 +130,14 @@ def handle_articles(method: str, event: dict) -> dict:
                         'author_id': a[7],
                         'author_name': a[8],
                         'created_at': a[9].isoformat() if a[9] else None,
-                        'updated_at': a[10].isoformat() if a[10] else None
+                        'updated_at': a[10].isoformat() if a[10] else None,
+                        'preview_image': a[11] if len(a) > 11 else None
                     }
                     for a in articles
                 ]
             })
         
         elif method == 'POST':
-            # Создать статью (editor, moderator, administrator)
             body = json.loads(event.get('body', '{}'))
             user = validate_user(event)
             
@@ -151,15 +148,16 @@ def handle_articles(method: str, event: dict) -> dict:
             description = body.get('description')
             content = body.get('content')
             category_id = body.get('category_id')
+            preview_image = body.get('preview_image')
             
             if not all([title, description, content]):
                 return cors_response(400, {'error': 'Missing required fields'})
             
             cur.execute(
-                """INSERT INTO articles (title, description, content, category_id, author_id) 
-                   VALUES (%s, %s, %s, %s, %s) 
+                """INSERT INTO articles (title, description, content, category_id, author_id, preview_image) 
+                   VALUES (%s, %s, %s, %s, %s, %s) 
                    RETURNING id, title, description, content, category_id, author_id, created_at, updated_at""",
-                (title, description, content, category_id, user['id'])
+                (title, description, content, category_id, user['id'], preview_image)
             )
             new_article = cur.fetchone()
             conn.commit()
@@ -178,7 +176,6 @@ def handle_articles(method: str, event: dict) -> dict:
             })
         
         elif method == 'PUT':
-            # Обновить статью (editor, moderator, administrator)
             body = json.loads(event.get('body', '{}'))
             user = validate_user(event)
             
@@ -190,14 +187,12 @@ def handle_articles(method: str, event: dict) -> dict:
             if not article_id:
                 return cors_response(400, {'error': 'Article ID is required'})
             
-            # Проверяем права
             cur.execute("SELECT author_id FROM articles WHERE id = %s", (article_id,))
             article = cur.fetchone()
             
             if not article:
                 return cors_response(404, {'error': 'Article not found'})
             
-            # Только автор или администратор может редактировать
             if article[0] != user['id'] and user['role'] != 'administrator':
                 return cors_response(403, {'error': 'Access denied'})
             
@@ -220,6 +215,10 @@ def handle_articles(method: str, event: dict) -> dict:
                 updates.append("category_id = %s")
                 params.append(body['category_id'])
             
+            if 'preview_image' in body:
+                updates.append("preview_image = %s")
+                params.append(body['preview_image'])
+            
             if updates:
                 updates.append("updated_at = CURRENT_TIMESTAMP")
                 params.append(article_id)
@@ -231,7 +230,6 @@ def handle_articles(method: str, event: dict) -> dict:
             return cors_response(200, {'success': True})
         
         elif method == 'DELETE':
-            # Удалить статью (moderator, administrator)
             user = validate_user(event)
             
             if not user or user['role'] not in ['moderator', 'administrator']:
@@ -260,7 +258,6 @@ def handle_users(method: str, event: dict) -> dict:
     
     user = validate_user(event)
     
-    # Только суперадминистратор
     if not user or user['steam_id'] != '76561198995407853':
         return cors_response(403, {'error': 'Access denied'})
     
@@ -269,7 +266,6 @@ def handle_users(method: str, event: dict) -> dict:
     
     try:
         if method == 'GET':
-            # Получить всех пользователей
             cur.execute("""
                 SELECT id, steam_id, username, avatar_url, role, created_at, updated_at
                 FROM users
@@ -293,7 +289,6 @@ def handle_users(method: str, event: dict) -> dict:
             })
         
         elif method == 'PUT':
-            # Обновить роль пользователя
             body = json.loads(event.get('body', '{}'))
             user_id = body.get('id')
             new_role = body.get('role')
@@ -313,14 +308,12 @@ def handle_users(method: str, event: dict) -> dict:
             return cors_response(200, {'success': True})
         
         elif method == 'DELETE':
-            # Удалить пользователя
             query = event.get('queryStringParameters', {})
             user_id = query.get('id')
             
             if not user_id:
                 return cors_response(400, {'error': 'ID is required'})
             
-            # Нельзя удалить супер-админа
             cur.execute("SELECT steam_id FROM users WHERE id = %s", (user_id,))
             target_user = cur.fetchone()
             
@@ -340,24 +333,77 @@ def handle_users(method: str, event: dict) -> dict:
     return cors_response(405, {'error': 'Method not allowed'})
 
 
+def handle_upload_image(method: str, event: dict) -> dict:
+    """Загрузка изображений в S3"""
+    
+    if method != 'POST':
+        return cors_response(405, {'error': 'Method not allowed'})
+    
+    user = validate_user(event)
+    if not user:
+        return cors_response(403, {'error': 'Authentication required'})
+    
+    try:
+        import boto3
+        import base64
+        import uuid
+        
+        body = json.loads(event.get('body', '{}'))
+        image_data = body.get('image', '')
+        filename = body.get('filename', 'image.png')
+        
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        image_bytes = base64.b64decode(image_data)
+        
+        content_type = 'image/png'
+        if filename.lower().endswith(('.jpg', '.jpeg')):
+            content_type = 'image/jpeg'
+        elif filename.lower().endswith('.gif'):
+            content_type = 'image/gif'
+        elif filename.lower().endswith('.webp'):
+            content_type = 'image/webp'
+        
+        s3 = boto3.client('s3',
+            endpoint_url='https://bucket.poehali.dev',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY']
+        )
+        
+        file_ext = filename.split('.')[-1] if '.' in filename else 'png'
+        unique_name = f"wiki/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
+        
+        s3.put_object(
+            Bucket='files',
+            Key=unique_name,
+            Body=image_bytes,
+            ContentType=content_type
+        )
+        
+        cdn_url = f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/bucket/{unique_name}"
+        
+        return cors_response(200, {'url': cdn_url})
+    
+    except Exception as e:
+        print(f"Upload error: {str(e)}")
+        return cors_response(500, {'error': f'Upload failed: {str(e)}'})
+
+
 def validate_user(event: dict) -> dict:
     """Проверяет авторизацию пользователя по токену"""
     
-    # Получаем токен из заголовка
     headers = event.get('headers', {})
     auth_header = headers.get('X-Authorization', headers.get('authorization', ''))
     
     if not auth_header:
         return None
     
-    # Извлекаем токен
     token = auth_header.replace('Bearer ', '').strip()
     
     if not token:
         return None
     
-    # Для демонстрации: декодируем простой токен вида "steamid:userid"
-    # В продакшене используйте JWT или другой безопасный метод
     try:
         parts = token.split(':')
         if len(parts) >= 2:

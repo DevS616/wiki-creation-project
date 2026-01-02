@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Flame, Plus, Pencil, Trash2, Users, FileText, Layers, LogOut } from 'lucide-react';
+import SimpleTextEditor from '@/components/SimpleTextEditor';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -50,6 +51,10 @@ const AdminPanel = () => {
   const [showArticleDialog, setShowArticleDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [showUserDialog, setShowUserDialog] = useState(false);
+  
+  const [articleContent, setArticleContent] = useState('');
+  const [previewImage, setPreviewImage] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
   useEffect(() => {
     checkAuth();
@@ -78,17 +83,14 @@ const AdminPanel = () => {
     if (!token) return;
 
     try {
-      // Загружаем категории
       const categoriesRes = await fetch(`${API_URL}?action=categories`);
       const categoriesData = await categoriesRes.json();
       setCategories(categoriesData.categories || []);
 
-      // Загружаем статьи
       const articlesRes = await fetch(`${API_URL}?action=articles`);
       const articlesData = await articlesRes.json();
       setArticles(articlesData.articles || []);
 
-      // Загружаем пользователей (только для супер-админа)
       const userStr = localStorage.getItem('admin_user');
       if (userStr) {
         const user = JSON.parse(userStr);
@@ -121,8 +123,9 @@ const AdminPanel = () => {
       id: editArticle?.id,
       title: formData.get('title'),
       description: formData.get('description'),
-      content: formData.get('content'),
-      category_id: parseInt(formData.get('category_id') as string)
+      content: articleContent,
+      category_id: parseInt(selectedCategoryId),
+      preview_image: previewImage || null
     };
 
     try {
@@ -138,6 +141,9 @@ const AdminPanel = () => {
 
       setShowArticleDialog(false);
       setEditArticle(null);
+      setArticleContent('');
+      setPreviewImage('');
+      setSelectedCategoryId('');
       loadData();
     } catch (err) {
       console.error('Failed to save article:', err);
@@ -160,6 +166,24 @@ const AdminPanel = () => {
     } catch (err) {
       console.error('Failed to delete article:', err);
       alert('Ошибка при удалении статьи');
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!confirm('Удалить категорию? Все статьи этой категории останутся без категории.')) return;
+
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+
+    try {
+      await fetch(`${API_URL}?action=categories&id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      alert('Ошибка при удалении категории');
     }
   };
 
@@ -224,7 +248,6 @@ const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header */}
       <header className="border-b border-slate-700 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -276,7 +299,6 @@ const AdminPanel = () => {
             )}
           </TabsList>
 
-          {/* Статьи */}
           <TabsContent value="articles">
             <Card className="p-6 bg-slate-800/50 border-slate-700">
               <div className="flex justify-between items-center mb-6">
@@ -284,12 +306,17 @@ const AdminPanel = () => {
                 {canEdit && (
                   <Dialog open={showArticleDialog} onOpenChange={setShowArticleDialog}>
                     <DialogTrigger asChild>
-                      <Button onClick={() => setEditArticle(null)} className="bg-orange-600 hover:bg-orange-700">
+                      <Button onClick={() => {
+                        setEditArticle(null);
+                        setArticleContent('');
+                        setPreviewImage('');
+                        setSelectedCategoryId('');
+                      }} className="bg-orange-600 hover:bg-orange-700">
                         <Plus size={16} className="mr-2" />
                         Добавить статью
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-800 border-slate-700 max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="bg-slate-800 border-slate-700 max-w-4xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle className="text-white">
                           {editArticle ? 'Редактировать статью' : 'Новая статья'}
@@ -308,7 +335,11 @@ const AdminPanel = () => {
                         </div>
                         <div>
                           <Label htmlFor="category_id" className="text-white">Категория</Label>
-                          <Select name="category_id" defaultValue={editArticle?.category_id?.toString()} required>
+                          <Select 
+                            value={selectedCategoryId} 
+                            onValueChange={setSelectedCategoryId}
+                            required
+                          >
                             <SelectTrigger className="bg-slate-900 border-slate-700 text-white">
                               <SelectValue placeholder="Выберите категорию" />
                             </SelectTrigger>
@@ -333,14 +364,25 @@ const AdminPanel = () => {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="content" className="text-white">Содержание</Label>
-                          <Textarea
-                            id="content"
-                            name="content"
-                            required
-                            defaultValue={editArticle?.content}
+                          <Label htmlFor="preview_image" className="text-white">Превью изображение (URL)</Label>
+                          <Input
+                            id="preview_image"
+                            name="preview_image"
+                            value={previewImage}
+                            onChange={(e) => setPreviewImage(e.target.value)}
+                            placeholder="https://example.com/image.jpg"
                             className="bg-slate-900 border-slate-700 text-white"
-                            rows={10}
+                          />
+                          {previewImage && (
+                            <img src={previewImage} alt="Превью" className="mt-2 w-full max-w-sm rounded-lg" />
+                          )}
+                        </div>
+                        <div>
+                          <Label className="text-white">Содержание</Label>
+                          <SimpleTextEditor
+                            value={articleContent}
+                            onChange={setArticleContent}
+                            placeholder="Напишите содержание статьи..."
                           />
                         </div>
                         <div className="flex gap-2">
@@ -353,6 +395,9 @@ const AdminPanel = () => {
                             onClick={() => {
                               setShowArticleDialog(false);
                               setEditArticle(null);
+                              setArticleContent('');
+                              setPreviewImage('');
+                              setSelectedCategoryId('');
                             }}
                             className="border-slate-700 text-white"
                           >
@@ -384,6 +429,9 @@ const AdminPanel = () => {
                             variant="outline"
                             onClick={() => {
                               setEditArticle(article);
+                              setArticleContent(article.content);
+                              setPreviewImage('');
+                              setSelectedCategoryId(article.category_id?.toString() || '');
                               setShowArticleDialog(true);
                             }}
                             className="border-slate-700"
@@ -409,7 +457,6 @@ const AdminPanel = () => {
             </Card>
           </TabsContent>
 
-          {/* Категории */}
           {isAdmin && (
             <TabsContent value="categories">
               <Card className="p-6 bg-slate-800/50 border-slate-700">
@@ -468,8 +515,20 @@ const AdminPanel = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {categories.map(category => (
                     <Card key={category.id} className="p-4 bg-slate-900/50 border-slate-700">
-                      <h3 className="text-lg font-semibold text-white mb-1">{category.name}</h3>
-                      <p className="text-slate-400 text-sm">Иконка: {category.icon}</p>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-1">{category.name}</h3>
+                          <p className="text-slate-400 text-sm">Иконка: {category.icon}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteCategory(category.id)}
+                          className="border-red-700 text-red-400 hover:bg-red-900/20"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
                     </Card>
                   ))}
                 </div>
@@ -477,7 +536,6 @@ const AdminPanel = () => {
             </TabsContent>
           )}
 
-          {/* Пользователи */}
           {isSuperAdmin && (
             <TabsContent value="users">
               <Card className="p-6 bg-slate-800/50 border-slate-700">

@@ -235,11 +235,52 @@ const Index = () => {
                   {selectedArticle.description}
                 </p>
                 
-                <div className="prose prose-invert max-w-none">
-                  <p className="text-slate-300 leading-relaxed">
-                    {selectedArticle.content}
-                  </p>
-                </div>
+                <style>{`
+                  .prose ul, .prose ol {
+                    margin: 16px 0;
+                    padding-left: 24px;
+                    list-style-position: outside;
+                  }
+                  .prose ul { list-style-type: disc; }
+                  .prose ol { list-style-type: decimal; }
+                  .prose li { margin: 4px 0; }
+                  .prose hr {
+                    border: none;
+                    border-top: 1px solid #475569;
+                    margin: 24px 0;
+                  }
+                  .prose h2 {
+                    color: #fff;
+                    font-size: 1.875rem;
+                    font-weight: 700;
+                    margin: 20px 0 12px 0;
+                  }
+                  .prose h3 {
+                    color: #fff;
+                    font-size: 1.5rem;
+                    font-weight: 600;
+                    margin: 16px 0 10px 0;
+                  }
+                  .prose p {
+                    margin: 12px 0;
+                  }
+                  .prose a {
+                    color: #ff6b35;
+                    text-decoration: underline;
+                  }
+                  .prose img {
+                    max-width: 100%;
+                    height: auto;
+                    border-radius: 8px;
+                    margin: 16px 0;
+                  }
+                `}</style>
+                
+                <div 
+                  className="prose prose-invert max-w-none text-slate-300"
+                  style={{ lineHeight: '1.8' }}
+                  dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+                />
               </Card>
             )}
           </main>
