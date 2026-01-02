@@ -364,15 +364,65 @@ const AdminPanel = () => {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="preview_image" className="text-white">Превью изображение (URL)</Label>
-                          <Input
-                            id="preview_image"
-                            name="preview_image"
-                            value={previewImage}
-                            onChange={(e) => setPreviewImage(e.target.value)}
-                            placeholder="https://example.com/image.jpg"
-                            className="bg-slate-900 border-slate-700 text-white"
-                          />
+                          <Label className="text-white">Превью изображение</Label>
+                          <Tabs defaultValue="url" className="w-full">
+                            <TabsList className="grid w-full grid-cols-2 bg-slate-800">
+                              <TabsTrigger value="url">URL</TabsTrigger>
+                              <TabsTrigger value="upload">Загрузить</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="url" className="space-y-2">
+                              <Input
+                                placeholder="https://example.com/image.jpg"
+                                value={previewImage}
+                                onChange={(e) => setPreviewImage(e.target.value)}
+                                className="bg-slate-900 border-slate-700 text-white"
+                              />
+                            </TabsContent>
+                            <TabsContent value="upload" className="space-y-2">
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  
+                                  const reader = new FileReader();
+                                  reader.onload = async (event) => {
+                                    const base64 = event.target?.result as string;
+                                    
+                                    try {
+                                      const response = await fetch('https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4?action=upload_image', {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                                        },
+                                        body: JSON.stringify({
+                                          image: base64,
+                                          filename: file.name
+                                        })
+                                      });
+
+                                      const data = await response.json();
+                                      
+                                      if (data.url) {
+                                        setPreviewImage(data.url);
+                                      } else {
+                                        alert('Ошибка при загрузке изображения');
+                                      }
+                                    } catch (err) {
+                                      console.error('Failed to upload image:', err);
+                                      alert('Ошибка при загрузке изображения');
+                                    }
+                                  };
+                                  
+                                  reader.readAsDataURL(file);
+                                }}
+                                className="bg-slate-900 border-slate-700 text-white"
+                              />
+                              <p className="text-xs text-slate-400">Поддерживаются: JPG, PNG, GIF, WebP</p>
+                            </TabsContent>
+                          </Tabs>
                           {previewImage && (
                             <img src={previewImage} alt="Превью" className="mt-2 w-full max-w-sm rounded-lg" />
                           )}
