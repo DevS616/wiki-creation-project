@@ -61,7 +61,10 @@ const SimpleTextEditor = ({ value, onChange, placeholder }: SimpleTextEditorProp
 
   const insertLink = () => {
     if (!linkUrl) return;
-    const linkHtml = `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer" style="color: #ff6b35; text-decoration: underline;">${linkText || linkUrl}</a>`;
+    const formattedUrl = linkUrl.startsWith('http://') || linkUrl.startsWith('https://') 
+      ? linkUrl 
+      : `https://${linkUrl}`;
+    const linkHtml = `<a href="${formattedUrl}" target="_blank" rel="noopener noreferrer" style="color: #ff6b35; text-decoration: underline;">${linkText || linkUrl}</a>`;
     onChange(value + linkHtml);
     setLinkUrl('');
     setLinkText('');
