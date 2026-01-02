@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Bold, Italic, Link, Image as ImageIcon, List, ListOrdered, 
   Minus, Palette, Code, Quote, Eye, EyeOff,
@@ -26,6 +27,9 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
   const [textColor, setTextColor] = useState('#ff6b35');
   const [bgColor, setBgColor] = useState('#fef3c7');
   const [showPreview, setShowPreview] = useState(false);
+  const [showTableDialog, setShowTableDialog] = useState(false);
+  const [tableRows, setTableRows] = useState('3');
+  const [tableCols, setTableCols] = useState('3');
 
   const insertTag = (openTag: string, closeTag: string, placeholder?: string) => {
     const textarea = document.getElementById('editor-textarea') as HTMLTextAreaElement;
@@ -140,30 +144,40 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
   };
 
   const insertTable = () => {
+    const rows = parseInt(tableRows) || 3;
+    const cols = parseInt(tableCols) || 3;
+    
+    let headerCells = '';
+    for (let i = 1; i <= cols; i++) {
+      headerCells += `        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок ${i}</th>\n`;
+    }
+    
+    let bodyRows = '';
+    let cellCounter = 1;
+    for (let i = 0; i < rows; i++) {
+      bodyRows += '      <tr>\n';
+      for (let j = 0; j < cols; j++) {
+        bodyRows += `        <td style="border: 1px solid #475569; padding: 12px;">Ячейка ${cellCounter}</td>\n`;
+        cellCounter++;
+      }
+      bodyRows += '      </tr>\n';
+    }
+    
     const tableHtml = `<div style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 16px 0;">
   <table style="width: 100%; min-width: 500px; border-collapse: collapse;">
     <thead>
       <tr style="background-color: #334155;">
-        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок 1</th>
-        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок 2</th>
-        <th style="border: 1px solid #475569; padding: 12px; color: #fff; white-space: nowrap;">Заголовок 3</th>
-      </tr>
+${headerCells}      </tr>
     </thead>
     <tbody>
-      <tr>
-        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 1</td>
-        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 2</td>
-        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 3</td>
-      </tr>
-      <tr>
-        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 4</td>
-        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 5</td>
-        <td style="border: 1px solid #475569; padding: 12px;">Ячейка 6</td>
-      </tr>
-    </tbody>
+${bodyRows}    </tbody>
   </table>
 </div>`;
+    
     onChange(value + tableHtml);
+    setShowTableDialog(false);
+    setTableRows('3');
+    setTableCols('3');
   };
 
   const applyAlignment = (align: 'left' | 'center' | 'right') => {
@@ -245,7 +259,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
           <Button type="button" size="sm" variant="outline" onClick={insertCodeBlock} className="border-slate-700 hover:bg-slate-700 h-7 w-7 p-0" title="Код">
             <Code size={14} />
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={insertTable} className="border-slate-700 hover:bg-slate-700 h-7 w-7 p-0" title="Таблица">
+          <Button type="button" size="sm" variant="outline" onClick={() => setShowTableDialog(true)} className="border-slate-700 hover:bg-slate-700 h-7 w-7 p-0" title="Таблица">
             <Table size={14} />
           </Button>
           <Button type="button" size="sm" variant="outline" onClick={insertDivider} className="border-slate-700 hover:bg-slate-700 h-7 w-7 p-0" title="Разделитель">
@@ -365,6 +379,57 @@ const RichTextEditor = ({ value, onChange, placeholder }: RichTextEditorProps) =
           </Tabs>
         </Card>
       </div>
+
+      {/* Диалог создания таблицы */}
+      <Dialog open={showTableDialog} onOpenChange={setShowTableDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Создать таблицу</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="table-rows" className="text-white">Количество строк</Label>
+              <Input
+                id="table-rows"
+                type="number"
+                min="1"
+                max="20"
+                value={tableRows}
+                onChange={(e) => setTableRows(e.target.value)}
+                className="bg-slate-900 border-slate-700 text-white"
+              />
+            </div>
+            <div>
+              <Label htmlFor="table-cols" className="text-white">Количество столбцов</Label>
+              <Input
+                id="table-cols"
+                type="number"
+                min="1"
+                max="10"
+                value={tableCols}
+                onChange={(e) => setTableCols(e.target.value)}
+                className="bg-slate-900 border-slate-700 text-white"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={insertTable} className="bg-orange-600 hover:bg-orange-700">
+                Создать
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTableDialog(false);
+                  setTableRows('3');
+                  setTableCols('3');
+                }}
+                className="border-slate-600 bg-slate-900/80 text-white hover:bg-slate-700 hover:border-slate-500"
+              >
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
