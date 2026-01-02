@@ -324,7 +324,7 @@ const Index = () => {
                       navigate('/');
                     }}
                     variant="outline"
-                    className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700"
+                    className="border-slate-600 bg-slate-900/80 text-white hover:text-white hover:bg-slate-700 hover:border-slate-500"
                   >
                     <ArrowLeft size={16} className="mr-2" />
                     Назад к списку

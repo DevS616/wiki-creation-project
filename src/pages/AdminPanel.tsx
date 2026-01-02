@@ -461,7 +461,7 @@ const AdminPanel = () => {
                               setPreviewImage('');
                               setSelectedCategoryId('');
                             }}
-                            className="border-slate-700 text-white"
+                            className="border-slate-600 bg-slate-900/80 text-white hover:bg-slate-700 hover:border-slate-500"
                           >
                             Отмена
                           </Button>
