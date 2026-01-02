@@ -84,6 +84,7 @@ def handle_categories(method: str, event: dict) -> dict:
             if not category_id:
                 return cors_response(400, {'error': 'ID is required'})
             
+            cur.execute("DELETE FROM article_categories WHERE category_id = %s", (int(category_id),))
             cur.execute("UPDATE articles SET category_id = NULL WHERE category_id = %s", (int(category_id),))
             cur.execute("DELETE FROM categories WHERE id = %s", (int(category_id),))
             conn.commit()
@@ -107,35 +108,47 @@ def handle_articles(method: str, event: dict) -> dict:
         if method == 'GET':
             cur.execute("""
                 SELECT a.id, a.title, a.description, a.content, a.category_id, 
-                       c.name as category_name, c.icon as category_icon,
                        a.author_id, u.username as author_name,
                        a.created_at, a.updated_at, a.preview_image
                 FROM articles a
-                LEFT JOIN categories c ON a.category_id = c.id
                 LEFT JOIN users u ON a.author_id = u.id
                 ORDER BY a.updated_at DESC
             """)
             articles = cur.fetchall()
             
-            return cors_response(200, {
-                'articles': [
-                    {
-                        'id': a[0],
-                        'title': a[1],
-                        'description': a[2],
-                        'content': a[3],
-                        'category_id': a[4],
-                        'category_name': a[5],
-                        'category_icon': a[6],
-                        'author_id': a[7],
-                        'author_name': a[8],
-                        'created_at': a[9].isoformat() if a[9] else None,
-                        'updated_at': a[10].isoformat() if a[10] else None,
-                        'preview_image': a[11] if len(a) > 11 else None
-                    }
-                    for a in articles
-                ]
-            })
+            result_articles = []
+            for a in articles:
+                article_id = a[0]
+                
+                cur.execute("""
+                    SELECT c.id, c.name, c.icon
+                    FROM article_categories ac
+                    JOIN categories c ON ac.category_id = c.id
+                    WHERE ac.article_id = %s
+                """, (article_id,))
+                categories_data = cur.fetchall()
+                
+                category_name = categories_data[0][1] if categories_data else None
+                category_icon = categories_data[0][2] if categories_data else None
+                
+                result_articles.append({
+                    'id': a[0],
+                    'title': a[1],
+                    'description': a[2],
+                    'content': a[3],
+                    'category_id': a[4],
+                    'category_name': category_name,
+                    'category_icon': category_icon,
+                    'category_ids': [c[0] for c in categories_data],
+                    'categories': [{'id': c[0], 'name': c[1], 'icon': c[2]} for c in categories_data],
+                    'author_id': a[5],
+                    'author_name': a[6],
+                    'created_at': a[7].isoformat() if a[7] else None,
+                    'updated_at': a[8].isoformat() if a[8] else None,
+                    'preview_image': a[9]
+                })
+            
+            return cors_response(200, {'articles': result_articles})
         
         elif method == 'POST':
             body = json.loads(event.get('body', '{}'))
@@ -147,19 +160,32 @@ def handle_articles(method: str, event: dict) -> dict:
             title = body.get('title')
             description = body.get('description')
             content = body.get('content')
-            category_id = body.get('category_id')
+            category_ids = body.get('category_ids', [])
             preview_image = body.get('preview_image')
             
             if not all([title, description, content]):
                 return cors_response(400, {'error': 'Missing required fields'})
             
+            if not category_ids:
+                return cors_response(400, {'error': 'At least one category is required'})
+            
+            first_category_id = category_ids[0] if category_ids else None
+            
             cur.execute(
                 """INSERT INTO articles (title, description, content, category_id, author_id, preview_image) 
                    VALUES (%s, %s, %s, %s, %s, %s) 
                    RETURNING id, title, description, content, category_id, author_id, created_at, updated_at""",
-                (title, description, content, category_id, user['id'], preview_image)
+                (title, description, content, first_category_id, user['id'], preview_image)
             )
             new_article = cur.fetchone()
+            article_id = new_article[0]
+            
+            for cat_id in category_ids:
+                cur.execute(
+                    "INSERT INTO article_categories (article_id, category_id) VALUES (%s, %s)",
+                    (article_id, cat_id)
+                )
+            
             conn.commit()
             
             return cors_response(201, {
@@ -169,6 +195,7 @@ def handle_articles(method: str, event: dict) -> dict:
                     'description': new_article[2],
                     'content': new_article[3],
                     'category_id': new_article[4],
+                    'category_ids': category_ids,
                     'author_id': new_article[5],
                     'created_at': new_article[6].isoformat(),
                     'updated_at': new_article[7].isoformat()
@@ -218,6 +245,20 @@ def handle_articles(method: str, event: dict) -> dict:
             if 'preview_image' in body:
                 updates.append("preview_image = %s")
                 params.append(body['preview_image'])
+            
+            if 'category_ids' in body:
+                category_ids = body['category_ids']
+                if category_ids:
+                    updates.append("category_id = %s")
+                    params.append(category_ids[0])
+                    
+                    cur.execute("DELETE FROM article_categories WHERE article_id = %s", (article_id,))
+                    
+                    for cat_id in category_ids:
+                        cur.execute(
+                            "INSERT INTO article_categories (article_id, category_id) VALUES (%s, %s)",
+                            (article_id, cat_id)
+                        )
             
             if updates:
                 updates.append("updated_at = CURRENT_TIMESTAMP")

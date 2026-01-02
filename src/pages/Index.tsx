@@ -13,6 +13,7 @@ interface Article {
   title: string;
   category_name: string;
   category_icon: string;
+  categories?: Array<{id: number; name: string; icon: string}>;
   description: string;
   content: string;
   preview_image?: string;
@@ -71,7 +72,9 @@ const Index = () => {
   const filteredArticles = articles.filter(article => {
     const matchesSearch = article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          article.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'Все' || article.category_name === selectedCategory;
+    const matchesCategory = selectedCategory === 'Все' || 
+                           article.categories?.some(cat => cat.name === selectedCategory) ||
+                           article.category_name === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -192,17 +195,25 @@ const Index = () => {
                       className="p-5 bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-orange-600 transition-all cursor-pointer group"
                     >
                       <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium">
-                            {article.category_name || 'Без категории'}
-                          </Badge>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {article.categories && article.categories.length > 0 ? (
+                            article.categories.map(cat => (
+                              <Badge key={cat.id} variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium">
+                                {cat.name}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium">
+                              {article.category_name || 'Без категории'}
+                            </Badge>
+                          )}
                           <span className="text-xs font-mono bg-slate-700/50 text-slate-400 px-2 py-1 rounded">
                             ID: {article.id}
                           </span>
                         </div>
                         <ChevronRight 
                           size={20} 
-                          className="text-slate-400 group-hover:text-orange-400 transition-colors" 
+                          className="text-slate-400 group-hover:text-orange-400 transition-colors flex-shrink-0" 
                         />
                       </div>
                       <div className="flex items-start gap-3 mb-2">

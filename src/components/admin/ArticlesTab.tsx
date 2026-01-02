@@ -25,6 +25,8 @@ interface Article {
   content: string;
   category_id: number;
   category_name?: string;
+  category_ids?: number[];
+  categories?: Array<{id: number; name: string; icon: string}>;
   author_name?: string;
   preview_image?: string;
 }
@@ -43,7 +45,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
   const [articleContent, setArticleContent] = useState('');
   const [previewImage, setPreviewImage] = useState('');
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   const fixLinks = (content: string): string => {
     return content.replace(/href="([^"]+)"/g, (match, url) => {
@@ -66,7 +68,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       title: formData.get('title'),
       description: formData.get('description'),
       content: fixedContent,
-      category_id: parseInt(selectedCategoryId),
+      category_ids: selectedCategoryIds.map(id => parseInt(id)),
       preview_image: previewImage || null
     };
 
@@ -85,7 +87,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setEditArticle(null);
       setArticleContent('');
       setPreviewImage('');
-      setSelectedCategoryId('');
+      setSelectedCategoryIds([]);
       loadData();
     } catch (err) {
       console.error('Failed to save article:', err);
@@ -166,7 +168,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                 setEditArticle(null);
                 setArticleContent('');
                 setPreviewImage('');
-                setSelectedCategoryId('');
+                setSelectedCategoryIds([]);
               }} className="bg-orange-600 hover:bg-orange-700">
                 <Plus size={16} className="mr-2" />
                 Добавить статью
@@ -190,23 +192,26 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                   />
                 </div>
                 <div>
-                  <Label htmlFor="category_id" className="text-white">Категория</Label>
-                  <Select 
-                    value={selectedCategoryId} 
-                    onValueChange={setSelectedCategoryId}
-                    required
-                  >
-                    <SelectTrigger className="bg-slate-900 border-slate-700 text-white">
-                      <SelectValue placeholder="Выберите категорию" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-700">
-                      {categories.map(cat => (
-                        <SelectItem key={cat.id} value={cat.id.toString()} className="text-white">
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-white">Категории</Label>
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-slate-900 border border-slate-700 rounded-md">
+                    {categories.map(cat => (
+                      <label key={cat.id} className="flex items-center gap-2 text-white cursor-pointer hover:bg-slate-800 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategoryIds.includes(cat.id.toString())}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCategoryIds([...selectedCategoryIds, cat.id.toString()]);
+                            } else {
+                              setSelectedCategoryIds(selectedCategoryIds.filter(id => id !== cat.id.toString()));
+                            }
+                          }}
+                          className="w-4 h-4 accent-orange-600"
+                        />
+                        <span>{cat.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="description" className="text-white">Описание</Label>
@@ -269,7 +274,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                       setEditArticle(null);
                       setArticleContent('');
                       setPreviewImage('');
-                      setSelectedCategoryId('');
+                      setSelectedCategoryIds([]);
                     }}
                     className="border-slate-600 bg-slate-900/80 text-white hover:bg-slate-700 hover:border-slate-500"
                   >
@@ -287,13 +292,15 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
           <Card key={article.id} className="p-4 bg-slate-900/50 border-slate-700">
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-start gap-2 mb-2">
                   <h3 className="text-lg font-semibold text-white">{article.title}</h3>
-                  {article.category_name && (
-                    <span className="px-2 py-1 bg-orange-600/20 text-orange-400 rounded text-xs">
-                      {article.category_name}
-                    </span>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {article.categories?.map(cat => (
+                      <span key={cat.id} className="px-2 py-1 bg-orange-600/20 text-orange-400 rounded text-xs">
+                        {cat.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 <p className="text-slate-400 text-sm mb-2">{article.description}</p>
                 {article.author_name && (
@@ -317,7 +324,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                       setEditArticle(article);
                       setArticleContent(article.content);
                       setPreviewImage(article.preview_image || '');
-                      setSelectedCategoryId(article.category_id.toString());
+                      setSelectedCategoryIds(article.category_ids?.map(id => id.toString()) || []);
                       setShowArticleDialog(true);
                     }}
                     className="text-slate-400 hover:text-white"
