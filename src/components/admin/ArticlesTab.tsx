@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Pencil, Trash2, Link, Check } from 'lucide-react';
 import RichTextEditor from '@/components/RichTextEditor';
 
@@ -117,6 +118,43 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handlePreviewUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      
+      try {
+        const response = await fetch(`${API_URL}?action=upload_image`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+          },
+          body: JSON.stringify({
+            image: base64,
+            filename: file.name
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.url) {
+          setPreviewImage(data.url);
+        } else {
+          alert('Ошибка при загрузке превью');
+        }
+      } catch (err) {
+        console.error('Failed to upload preview:', err);
+        alert('Ошибка при загрузке превью');
+      }
+    };
+    
+    reader.readAsDataURL(file);
+  };
+
   return (
     <Card className="p-6 bg-slate-800/50 border-slate-700">
       <div className="flex justify-between items-center mb-6">
@@ -182,15 +220,36 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                   />
                 </div>
                 <div>
-                  <Label htmlFor="preview_image" className="text-white">Превью (URL)</Label>
-                  <Input
-                    id="preview_image"
-                    name="preview_image"
-                    value={previewImage}
-                    onChange={(e) => setPreviewImage(e.target.value)}
-                    placeholder="https://..."
-                    className="bg-slate-900 border-slate-700 text-white"
-                  />
+                  <Label className="text-white">Превью изображение</Label>
+                  <Tabs defaultValue="url" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 bg-slate-800">
+                      <TabsTrigger value="url">По URL</TabsTrigger>
+                      <TabsTrigger value="upload">Загрузить</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="url" className="space-y-2">
+                      <Input
+                        id="preview_image"
+                        name="preview_image"
+                        value={previewImage}
+                        onChange={(e) => setPreviewImage(e.target.value)}
+                        placeholder="https://..."
+                        className="bg-slate-900 border-slate-700 text-white"
+                      />
+                    </TabsContent>
+                    <TabsContent value="upload" className="space-y-2">
+                      <Input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handlePreviewUpload} 
+                        className="bg-slate-900 border-slate-700 text-white file:bg-slate-700 file:text-white file:border-0 file:rounded file:px-3 file:py-1 file:mr-3" 
+                      />
+                      {previewImage && (
+                        <div className="mt-2">
+                          <img src={previewImage} alt="Preview" className="w-32 h-32 object-cover rounded border border-slate-700" />
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </div>
                 <div>
                   <RichTextEditor
