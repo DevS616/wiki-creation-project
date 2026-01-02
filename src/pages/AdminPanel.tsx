@@ -114,17 +114,27 @@ const AdminPanel = () => {
     navigate('/adm');
   };
 
+  const fixLinks = (content: string): string => {
+    return content.replace(/href="([^"]+)"/g, (match, url) => {
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/') || url.startsWith('#')) {
+        return match;
+      }
+      return `href="https://${url}"`;
+    });
+  };
+
   const handleSaveArticle = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const token = localStorage.getItem('admin_token');
     if (!token) return;
 
     const formData = new FormData(e.currentTarget);
+    const fixedContent = fixLinks(articleContent);
     const data = {
       id: editArticle?.id,
       title: formData.get('title'),
       description: formData.get('description'),
-      content: articleContent,
+      content: fixedContent,
       category_id: parseInt(selectedCategoryId),
       preview_image: previewImage || null
     };
