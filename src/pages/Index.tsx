@@ -99,7 +99,7 @@ const Index = () => {
               </div>
             </div>
             <a 
-              href="https://devilrust.ru" 
+              href="https://play.devilrust.ru" 
               target="_blank" 
               rel="noopener noreferrer"
               className="px-3 py-2 md:px-4 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center gap-1 md:gap-2 text-sm md:text-base whitespace-nowrap"
