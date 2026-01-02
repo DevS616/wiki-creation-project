@@ -173,43 +173,42 @@ const Index = () => {
                     <Card
                       key={article.id}
                       onClick={() => setSelectedArticle(article)}
-                      className="p-0 bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-orange-600 transition-all cursor-pointer group overflow-hidden"
+                      className="p-5 bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-orange-600 transition-all cursor-pointer group"
                     >
-                      {article.preview_image && (
-                        <div className="w-full h-48 overflow-hidden">
-                          <img 
-                            src={article.preview_image} 
-                            alt={article.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                      )}
-                      <div className="p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1">
-                            {article.category_name}
-                          </Badge>
-                          <ChevronRight 
-                            size={20} 
-                            className="text-slate-400 group-hover:text-orange-400 transition-colors" 
-                          />
-                        </div>
-                        <div className="flex items-start gap-3 mb-2">
-                          <div className="w-10 h-10 rounded-lg bg-orange-600/10 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/20 transition-colors">
-                            {article.category_name === 'Основное' && <BookOpen size={20} className="text-orange-400" />}
-                            {article.category_name === 'Гайды' && <Map size={20} className="text-orange-400" />}
-                            {article.category_name === 'Механики' && <Wrench size={20} className="text-orange-400" />}
-                            {article.category_name === 'Кастомные предметы' && <Package size={20} className="text-orange-400" />}
-                            {article.category_name === 'Развлекательные ивенты' && <Sparkles size={20} className="text-orange-400" />}
+                      <div className="flex items-start justify-between mb-3">
+                        <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-base px-4 py-1.5 font-medium">
+                          {article.category_name}
+                        </Badge>
+                        <ChevronRight 
+                          size={20} 
+                          className="text-slate-400 group-hover:text-orange-400 transition-colors" 
+                        />
+                      </div>
+                      <div className="flex items-start gap-3 mb-2">
+                        {article.preview_image ? (
+                          <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                            <img 
+                              src={article.preview_image} 
+                              alt={article.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
                           </div>
-                          <div className="flex-1">
-                            <h3 className="text-xl font-semibold text-white group-hover:text-orange-400 transition-colors">
-                              {article.title}
-                            </h3>
-                            <p className="text-slate-400 text-sm line-clamp-2 mt-1">
-                              {article.description}
-                            </p>
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-orange-600/10 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/20 transition-colors">
+                            {article.category_name === 'Основное' && <BookOpen size={22} className="text-orange-400" />}
+                            {article.category_name === 'Гайды' && <Map size={22} className="text-orange-400" />}
+                            {article.category_name === 'Механики' && <Wrench size={22} className="text-orange-400" />}
+                            {article.category_name === 'Кастомные предметы' && <Package size={22} className="text-orange-400" />}
+                            {article.category_name === 'Развлекательные ивенты' && <Sparkles size={22} className="text-orange-400" />}
                           </div>
+                        )}
+                        <div className="flex-1">
+                          <h3 className="text-xl font-semibold text-white group-hover:text-orange-400 transition-colors">
+                            {article.title}
+                          </h3>
+                          <p className="text-slate-400 text-sm line-clamp-2 mt-1">
+                            {article.description}
+                          </p>
                         </div>
                       </div>
                     </Card>
