@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, BookOpen, Map, Wrench, Package, Sparkles } from 'lucide-react';
+import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, BookOpen, Map, Wrench, Package, Sparkles, Shuffle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -315,6 +316,34 @@ const Index = () => {
                   style={{ lineHeight: '1.8' }}
                   dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
                 />
+
+                <div className="mt-8 pt-6 border-t border-slate-700 flex gap-3 flex-wrap">
+                  <Button
+                    onClick={() => {
+                      setSelectedArticle(null);
+                      navigate('/');
+                    }}
+                    variant="outline"
+                    className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700"
+                  >
+                    <ArrowLeft size={16} className="mr-2" />
+                    Назад к списку
+                  </Button>
+                  {articles.length > 1 && (
+                    <Button
+                      onClick={() => {
+                        const otherArticles = articles.filter(a => a.id !== selectedArticle.id);
+                        const randomArticle = otherArticles[Math.floor(Math.random() * otherArticles.length)];
+                        setSelectedArticle(randomArticle);
+                        navigate(`/${randomArticle.id}`);
+                      }}
+                      className="bg-orange-600 hover:bg-orange-700 text-white"
+                    >
+                      <Shuffle size={16} className="mr-2" />
+                      Случайная статья
+                    </Button>
+                  )}
+                </div>
               </Card>
             )}
           </main>
