@@ -186,7 +186,7 @@ const Index = () => {
                       </div>
                       <div className="flex items-start gap-3 mb-2">
                         {article.preview_image ? (
-                          <div className="w-18 h-18 rounded-lg overflow-hidden flex-shrink-0">
+                          <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
                             <img 
                               src={article.preview_image} 
                               alt={article.title}
