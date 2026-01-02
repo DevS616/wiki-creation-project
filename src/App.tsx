@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import AdminLogin from "./pages/AdminLogin";
 import AdminPanel from "./pages/AdminPanel";
-import NotFound from "./pages/NotFound";
+import Custom404 from "./pages/Custom404";
 
 const queryClient = new QueryClient();
 
@@ -74,7 +74,7 @@ const App = () => {
             <Route path="/adm" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminPanel />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<Custom404 />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
