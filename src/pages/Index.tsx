@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +24,8 @@ interface Category {
 }
 
 const Index = () => {
+  const { articleId } = useParams<{ articleId?: string }>();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Все');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
@@ -33,6 +36,15 @@ const Index = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (articleId && articles.length > 0) {
+      const article = articles.find(a => a.id === parseInt(articleId));
+      if (article) {
+        setSelectedArticle(article);
+      }
+    }
+  }, [articleId, articles]);
 
   const loadData = async () => {
     try {
@@ -172,13 +184,21 @@ const Index = () => {
                   {filteredArticles.map(article => (
                     <Card
                       key={article.id}
-                      onClick={() => setSelectedArticle(article)}
+                      onClick={() => {
+                        setSelectedArticle(article);
+                        navigate(`/${article.id}`);
+                      }}
                       className="p-5 bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-orange-600 transition-all cursor-pointer group"
                     >
                       <div className="flex items-start justify-between mb-3">
-                        <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium">
-                          {article.category_name || 'Без категории'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium">
+                            {article.category_name || 'Без категории'}
+                          </Badge>
+                          <span className="text-xs font-mono bg-slate-700/50 text-slate-400 px-2 py-1 rounded">
+                            ID: {article.id}
+                          </span>
+                        </div>
                         <ChevronRight 
                           size={20} 
                           className="text-slate-400 group-hover:text-orange-400 transition-colors" 
@@ -227,7 +247,10 @@ const Index = () => {
               /* Article view */
               <Card className="p-8 bg-slate-800/50 border-slate-700">
                 <button
-                  onClick={() => setSelectedArticle(null)}
+                  onClick={() => {
+                    setSelectedArticle(null);
+                    navigate('/');
+                  }}
                   className="mb-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
                 >
                   <ArrowLeft size={20} />

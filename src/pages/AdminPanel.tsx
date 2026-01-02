@@ -476,7 +476,10 @@ const AdminPanel = () => {
                   <Card key={article.id} className="p-4 bg-slate-900/50 border-slate-700">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-white mb-1">{article.title}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-mono bg-orange-600/20 text-orange-400 px-2 py-1 rounded">ID: {article.id}</span>
+                          <h3 className="text-lg font-semibold text-white">{article.title}</h3>
+                        </div>
                         <p className="text-slate-400 text-sm mb-2">{article.description}</p>
                         <div className="flex gap-2 text-xs text-slate-500">
                           <span>Категория: {article.category_name}</span>
