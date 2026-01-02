@@ -176,8 +176,8 @@ const Index = () => {
                       className="p-5 bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-orange-600 transition-all cursor-pointer group"
                     >
                       <div className="flex items-start justify-between mb-3">
-                        <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-base px-4 py-1.5 font-medium">
-                          {article.category_name}
+                        <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-lg px-5 py-2 font-semibold">
+                          {article.category_name || 'Без категории'}
                         </Badge>
                         <ChevronRight 
                           size={20} 
