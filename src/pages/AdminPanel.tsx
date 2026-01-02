@@ -35,6 +35,7 @@ interface Article {
   category_id: number;
   category_name?: string;
   author_name?: string;
+  preview_image?: string;
 }
 
 const AdminPanel = () => {
@@ -480,7 +481,7 @@ const AdminPanel = () => {
                             onClick={() => {
                               setEditArticle(article);
                               setArticleContent(article.content);
-                              setPreviewImage('');
+                              setPreviewImage(article.preview_image || '');
                               setSelectedCategoryId(article.category_id?.toString() || '');
                               setShowArticleDialog(true);
                             }}
