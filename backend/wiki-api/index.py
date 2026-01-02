@@ -288,6 +288,40 @@ def handle_users(method: str, event: dict) -> dict:
                 ]
             })
         
+        elif method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            steam_id = body.get('steam_id')
+            username = body.get('username')
+            role = body.get('role', 'editor')
+            
+            if not steam_id or not username:
+                return cors_response(400, {'error': 'Steam ID and username are required'})
+            
+            if role not in ['editor', 'moderator', 'administrator']:
+                return cors_response(400, {'error': 'Invalid role'})
+            
+            # Проверяем, не существует ли уже такой пользователь
+            cur.execute("SELECT id FROM users WHERE steam_id = %s", (steam_id,))
+            if cur.fetchone():
+                return cors_response(400, {'error': 'User with this Steam ID already exists'})
+            
+            cur.execute(
+                "INSERT INTO users (steam_id, username, role) VALUES (%s, %s, %s) RETURNING id, steam_id, username, role, created_at",
+                (steam_id, username, role)
+            )
+            new_user = cur.fetchone()
+            conn.commit()
+            
+            return cors_response(201, {
+                'user': {
+                    'id': new_user[0],
+                    'steam_id': new_user[1],
+                    'username': new_user[2],
+                    'role': new_user[3],
+                    'created_at': new_user[4].isoformat()
+                }
+            })
+        
         elif method == 'PUT':
             body = json.loads(event.get('body', '{}'))
             user_id = body.get('id')
