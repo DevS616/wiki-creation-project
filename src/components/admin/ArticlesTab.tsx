@@ -112,7 +112,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
   };
 
   const copyArticleLink = (id: number) => {
-    const url = `${window.location.origin}/wiki/article/${id}`;
+    const url = `${window.location.origin}/${id}`;
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
