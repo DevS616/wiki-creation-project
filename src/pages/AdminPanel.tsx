@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Flame, Plus, Pencil, Trash2, Users, FileText, Layers, LogOut } from 'lucide-react';
+import { Flame, Plus, Pencil, Trash2, Users, FileText, Layers, LogOut, Link, Check } from 'lucide-react';
 import SimpleTextEditor from '@/components/SimpleTextEditor';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
@@ -55,6 +55,7 @@ const AdminPanel = () => {
   
   const [articleContent, setArticleContent] = useState('');
   const [previewImage, setPreviewImage] = useState('');
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
   useEffect(() => {
@@ -487,6 +488,20 @@ const AdminPanel = () => {
                         </div>
                       </div>
                       <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const url = `${window.location.origin}/${article.id}`;
+                            navigator.clipboard.writeText(url);
+                            setCopiedId(article.id);
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
+                          className="border-slate-700 text-slate-400 hover:text-white"
+                          title="Копировать ссылку"
+                        >
+                          {copiedId === article.id ? <Check size={14} className="text-green-400" /> : <Link size={14} />}
+                        </Button>
                         {canEdit && (
                           <Button
                             size="sm"
