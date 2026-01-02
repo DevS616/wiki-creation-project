@@ -234,8 +234,8 @@ const Index = () => {
                   Назад к списку
                 </button>
                 
-                <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 mb-4">
-                  {selectedArticle.category}
+                <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium mb-4">
+                  {selectedArticle.category_name || 'Без категории'}
                 </Badge>
                 
                 <h1 className="text-4xl font-bold text-white mb-4">
