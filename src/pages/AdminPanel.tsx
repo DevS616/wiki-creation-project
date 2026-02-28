@@ -102,17 +102,35 @@ const AdminPanel = () => {
     setMigrating(true);
     setMigrateResult(null);
     try {
-      const res = await fetch(`${API_URL}?action=migrate_images`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+      const listRes = await fetch(`${API_URL}?action=migrate_images`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (data.summary) {
-        setMigrateResult(`Перенесено: ${data.summary.migrated}, пропущено: ${data.summary.skipped}, ошибок: ${data.summary.failed}`);
-      } else {
-        setMigrateResult(data.error || 'Ошибка');
+      const listData = await listRes.json();
+      const toMigrate = (listData.articles || []).filter((a: {migrated: boolean}) => !a.migrated);
+      
+      if (toMigrate.length === 0) {
+        setMigrateResult('Все картинки уже перенесены');
+        setMigrating(false);
+        return;
       }
+
+      let done = 0, failed = 0;
+      for (const article of toMigrate) {
+        setMigrateResult(`Переносим ${done + 1} из ${toMigrate.length}...`);
+        try {
+          const res = await fetch(`${API_URL}?action=migrate_images`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ article_id: article.id })
+          });
+          const data = await res.json();
+          if (data.status === 'migrated' || data.status === 'skipped') done++;
+          else failed++;
+        } catch {
+          failed++;
+        }
+      }
+      setMigrateResult(`Готово: перенесено ${done}, ошибок ${failed}`);
     } catch {
       setMigrateResult('Ошибка соединения');
     }

@@ -482,96 +482,82 @@ def handle_upload_image(method: str, event: dict) -> dict:
 
 
 def handle_migrate_images(method: str, event: dict) -> dict:
-    """Перенос существующих изображений из старого S3 в reg.ru S3"""
-    
-    if method != 'POST':
-        return cors_response(405, {'error': 'Method not allowed'})
+    """Перенос изображений в reg.ru S3. GET — список статей для миграции, POST — мигрировать одну статью по article_id"""
     
     user = validate_user(event)
     if not user or user['role'] != 'administrator':
         return cors_response(403, {'error': 'Access denied'})
     
+    import urllib.request
+    import uuid
+    
+    regru_endpoint = os.environ['REGRU_S3_ENDPOINT'].rstrip('/')
+    bucket = os.environ['REGRU_BUCKET_NAME']
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
     try:
-        import boto3
-        import urllib.request
-        import uuid
+        if method == 'GET':
+            cur.execute("SELECT id, preview_image FROM articles WHERE preview_image IS NOT NULL AND preview_image != ''")
+            articles = cur.fetchall()
+            result = []
+            for article_id, url in articles:
+                already = f"{regru_endpoint}/{bucket}" in url
+                result.append({'id': article_id, 'url': url, 'migrated': already})
+            return cors_response(200, {'articles': result})
         
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        cur.execute("SELECT id, preview_image FROM articles WHERE preview_image IS NOT NULL AND preview_image != ''")
-        articles = cur.fetchall()
-        
-        s3 = get_regru_s3()
-        bucket = os.environ['REGRU_BUCKET_NAME']
-        
-        migrated = []
-        failed = []
-        skipped = []
-        
-        regru_endpoint = os.environ['REGRU_S3_ENDPOINT'].rstrip('/')
-        
-        for article_id, old_url in articles:
-            if f"{regru_endpoint}/{bucket}" in old_url:
-                skipped.append({'id': article_id, 'reason': 'already on regru'})
-                continue
+        elif method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            article_id = body.get('article_id')
+            if not article_id:
+                return cors_response(400, {'error': 'article_id required'})
             
-            try:
-                req = urllib.request.Request(old_url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    image_bytes = resp.read()
-                    content_type = resp.headers.get('Content-Type', 'image/png')
-                
-                ext = 'png'
-                if 'jpeg' in content_type or 'jpg' in content_type:
-                    ext = 'jpg'
-                elif 'gif' in content_type:
-                    ext = 'gif'
-                elif 'webp' in content_type:
-                    ext = 'webp'
-                elif '.' in old_url.split('?')[0]:
-                    ext = old_url.split('?')[0].split('.')[-1].lower()[:4]
-                
-                key = f"wiki/migrated/{uuid.uuid4().hex}.{ext}"
-                
-                s3.put_object(
-                    Bucket=bucket,
-                    Key=key,
-                    Body=image_bytes,
-                    ContentType=content_type,
-                    ACL='public-read'
-                )
-                
-                new_url = get_regru_cdn_url(key)
-                
-                cur.execute("UPDATE articles SET preview_image = %s WHERE id = %s", (new_url, article_id))
-                conn.commit()
-                
-                migrated.append({'id': article_id, 'old_url': old_url, 'new_url': new_url})
-                print(f"Migrated article {article_id}: {new_url}")
-                
-            except Exception as e:
-                failed.append({'id': article_id, 'url': old_url, 'error': str(e)})
-                print(f"Failed to migrate article {article_id}: {str(e)}")
+            cur.execute("SELECT preview_image FROM articles WHERE id = %s", (article_id,))
+            row = cur.fetchone()
+            if not row or not row[0]:
+                return cors_response(404, {'error': 'Article or image not found'})
+            
+            old_url = row[0]
+            
+            if f"{regru_endpoint}/{bucket}" in old_url:
+                return cors_response(200, {'status': 'skipped', 'reason': 'already on regru', 'url': old_url})
+            
+            req = urllib.request.Request(old_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                image_bytes = resp.read()
+                content_type = resp.headers.get('Content-Type', 'image/png')
+            
+            ext = 'png'
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                ext = 'jpg'
+            elif 'gif' in content_type:
+                ext = 'gif'
+            elif 'webp' in content_type:
+                ext = 'webp'
+            elif '.' in old_url.split('?')[0]:
+                ext = old_url.split('?')[0].split('.')[-1].lower()[:4]
+            
+            key = f"wiki/migrated/{uuid.uuid4().hex}.{ext}"
+            s3 = get_regru_s3()
+            s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type, ACL='public-read')
+            
+            new_url = get_regru_cdn_url(key)
+            cur.execute("UPDATE articles SET preview_image = %s WHERE id = %s", (new_url, article_id))
+            conn.commit()
+            
+            print(f"Migrated article {article_id}: {new_url}")
+            return cors_response(200, {'status': 'migrated', 'article_id': article_id, 'new_url': new_url})
         
-        cur.close()
-        conn.close()
-        
-        return cors_response(200, {
-            'migrated': migrated,
-            'failed': failed,
-            'skipped': skipped,
-            'summary': {
-                'total': len(articles),
-                'migrated': len(migrated),
-                'failed': len(failed),
-                'skipped': len(skipped)
-            }
-        })
+        return cors_response(405, {'error': 'Method not allowed'})
     
     except Exception as e:
         print(f"Migration error: {str(e)}")
         return cors_response(500, {'error': f'Migration failed: {str(e)}'})
+    
+    finally:
+        cur.close()
+        conn.close()
 
 
 def validate_user(event: dict) -> dict:
