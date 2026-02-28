@@ -572,6 +572,9 @@ def handle_migrate_images(method: str, event: dict) -> dict:
     except Exception as e:
         print(f"Migration error: {str(e)}")
         return cors_response(500, {'error': f'Migration failed: {str(e)}'})
+
+
+def validate_user(event: dict) -> dict:
     """Проверяет авторизацию пользователя по токену"""
     
     headers = event.get('headers', {})
