@@ -42,6 +42,8 @@ const AdminPanel = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -92,6 +94,29 @@ const AdminPanel = () => {
     } catch (err) {
       console.error('Failed to load data:', err);
     }
+  };
+
+  const handleMigrateImages = async () => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    setMigrating(true);
+    setMigrateResult(null);
+    try {
+      const res = await fetch(`${API_URL}?action=migrate_images`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.summary) {
+        setMigrateResult(`Перенесено: ${data.summary.migrated}, пропущено: ${data.summary.skipped}, ошибок: ${data.summary.failed}`);
+      } else {
+        setMigrateResult(data.error || 'Ошибка');
+      }
+    } catch {
+      setMigrateResult('Ошибка соединения');
+    }
+    setMigrating(false);
   };
 
   const handleLogout = () => {
@@ -168,6 +193,20 @@ const AdminPanel = () => {
                   <p className="text-slate-400 text-xs capitalize">{currentUser.role}</p>
                 </div>
               </div>
+              {isSuperAdmin && (
+                <div className="flex flex-col items-end gap-1">
+                  <Button
+                    onClick={handleMigrateImages}
+                    disabled={migrating}
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-600 text-slate-300 hover:text-white"
+                  >
+                    {migrating ? 'Переносим...' : 'Перенести картинки на reg.ru'}
+                  </Button>
+                  {migrateResult && <p className="text-xs text-slate-400">{migrateResult}</p>}
+                </div>
+              )}
               <Button onClick={handleLogout} variant="outline" size="sm" className="border-slate-700">
                 <LogOut size={16} />
               </Button>

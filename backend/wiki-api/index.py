@@ -21,8 +21,10 @@ def handler(event: dict, context) -> dict:
         return handle_users(method, event)
     elif action == 'upload_image':
         return handle_upload_image(method, event)
+    elif action == 'migrate_images':
+        return handle_migrate_images(method, event)
     
-    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users|upload_image'})
+    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users|upload_image|migrate_images'})
 
 
 def handle_categories(method: str, event: dict) -> dict:
@@ -408,8 +410,25 @@ def handle_users(method: str, event: dict) -> dict:
     return cors_response(405, {'error': 'Method not allowed'})
 
 
+def get_regru_s3():
+    """Создает клиент S3 для reg.ru"""
+    import boto3
+    return boto3.client('s3',
+        endpoint_url=os.environ['REGRU_S3_ENDPOINT'],
+        aws_access_key_id=os.environ['REGRU_ACCESS_KEY_ID'],
+        aws_secret_access_key=os.environ['REGRU_SECRET_ACCESS_KEY']
+    )
+
+
+def get_regru_cdn_url(key: str) -> str:
+    """Возвращает публичный URL файла в reg.ru S3"""
+    endpoint = os.environ['REGRU_S3_ENDPOINT'].rstrip('/')
+    bucket = os.environ['REGRU_BUCKET_NAME']
+    return f"{endpoint}/{bucket}/{key}"
+
+
 def handle_upload_image(method: str, event: dict) -> dict:
-    """Загрузка изображений в S3"""
+    """Загрузка изображений в S3 reg.ru"""
     
     if method != 'POST':
         return cors_response(405, {'error': 'Method not allowed'})
@@ -419,7 +438,6 @@ def handle_upload_image(method: str, event: dict) -> dict:
         return cors_response(403, {'error': 'Authentication required'})
     
     try:
-        import boto3
         import base64
         import uuid
         
@@ -440,23 +458,21 @@ def handle_upload_image(method: str, event: dict) -> dict:
         elif filename.lower().endswith('.webp'):
             content_type = 'image/webp'
         
-        s3 = boto3.client('s3',
-            endpoint_url='https://bucket.poehali.dev',
-            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
-            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY']
-        )
+        s3 = get_regru_s3()
+        bucket = os.environ['REGRU_BUCKET_NAME']
         
         file_ext = filename.split('.')[-1] if '.' in filename else 'png'
         unique_name = f"wiki/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
         
         s3.put_object(
-            Bucket='files',
+            Bucket=bucket,
             Key=unique_name,
             Body=image_bytes,
-            ContentType=content_type
+            ContentType=content_type,
+            ACL='public-read'
         )
         
-        cdn_url = f"https://cdn.poehali.dev/projects/{os.environ['AWS_ACCESS_KEY_ID']}/bucket/{unique_name}"
+        cdn_url = get_regru_cdn_url(unique_name)
         
         return cors_response(200, {'url': cdn_url})
     
@@ -465,7 +481,97 @@ def handle_upload_image(method: str, event: dict) -> dict:
         return cors_response(500, {'error': f'Upload failed: {str(e)}'})
 
 
-def validate_user(event: dict) -> dict:
+def handle_migrate_images(method: str, event: dict) -> dict:
+    """Перенос существующих изображений из старого S3 в reg.ru S3"""
+    
+    if method != 'POST':
+        return cors_response(405, {'error': 'Method not allowed'})
+    
+    user = validate_user(event)
+    if not user or user['role'] != 'administrator':
+        return cors_response(403, {'error': 'Access denied'})
+    
+    try:
+        import boto3
+        import urllib.request
+        import uuid
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT id, preview_image FROM articles WHERE preview_image IS NOT NULL AND preview_image != ''")
+        articles = cur.fetchall()
+        
+        s3 = get_regru_s3()
+        bucket = os.environ['REGRU_BUCKET_NAME']
+        
+        migrated = []
+        failed = []
+        skipped = []
+        
+        regru_endpoint = os.environ['REGRU_S3_ENDPOINT'].rstrip('/')
+        
+        for article_id, old_url in articles:
+            if f"{regru_endpoint}/{bucket}" in old_url:
+                skipped.append({'id': article_id, 'reason': 'already on regru'})
+                continue
+            
+            try:
+                req = urllib.request.Request(old_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    image_bytes = resp.read()
+                    content_type = resp.headers.get('Content-Type', 'image/png')
+                
+                ext = 'png'
+                if 'jpeg' in content_type or 'jpg' in content_type:
+                    ext = 'jpg'
+                elif 'gif' in content_type:
+                    ext = 'gif'
+                elif 'webp' in content_type:
+                    ext = 'webp'
+                elif '.' in old_url.split('?')[0]:
+                    ext = old_url.split('?')[0].split('.')[-1].lower()[:4]
+                
+                key = f"wiki/migrated/{uuid.uuid4().hex}.{ext}"
+                
+                s3.put_object(
+                    Bucket=bucket,
+                    Key=key,
+                    Body=image_bytes,
+                    ContentType=content_type,
+                    ACL='public-read'
+                )
+                
+                new_url = get_regru_cdn_url(key)
+                
+                cur.execute("UPDATE articles SET preview_image = %s WHERE id = %s", (new_url, article_id))
+                conn.commit()
+                
+                migrated.append({'id': article_id, 'old_url': old_url, 'new_url': new_url})
+                print(f"Migrated article {article_id}: {new_url}")
+                
+            except Exception as e:
+                failed.append({'id': article_id, 'url': old_url, 'error': str(e)})
+                print(f"Failed to migrate article {article_id}: {str(e)}")
+        
+        cur.close()
+        conn.close()
+        
+        return cors_response(200, {
+            'migrated': migrated,
+            'failed': failed,
+            'skipped': skipped,
+            'summary': {
+                'total': len(articles),
+                'migrated': len(migrated),
+                'failed': len(failed),
+                'skipped': len(skipped)
+            }
+        })
+    
+    except Exception as e:
+        print(f"Migration error: {str(e)}")
+        return cors_response(500, {'error': f'Migration failed: {str(e)}'})
     """Проверяет авторизацию пользователя по токену"""
     
     headers = event.get('headers', {})
