@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, BookOpen, Map, Wrench, Package, Sparkles, Shuffle } from 'lucide-react';
+import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, Map, Shuffle } from 'lucide-react';
+import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
@@ -43,7 +44,7 @@ const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState('Все');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [categories, setCategories] = useState<string[]>(['Все']);
+  const [categories, setCategories] = useState<Category[]>([{ id: 0, name: 'Все', icon: '' }]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,8 +72,7 @@ const Index = () => {
 
       setArticles(articlesData.articles || []);
       
-      const categoryNames = categoriesData.categories?.map((c: Category) => c.name) || [];
-      setCategories(['Все', ...categoryNames]);
+      setCategories([{ id: 0, name: 'Все', icon: '' }, ...(categoriesData.categories || [])]);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -138,18 +138,22 @@ const Index = () => {
               <div className="space-y-2">
                 {categories.map(category => (
                   <button
-                    key={category}
+                    key={category.name}
                     onClick={() => {
-                      setSelectedCategory(category);
+                      setSelectedCategory(category.name);
                       setSelectedArticle(null);
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-all ${
-                      selectedCategory === category
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center gap-2 ${
+                      selectedCategory === category.name
                         ? 'bg-orange-600 text-white'
                         : 'text-slate-300 hover:bg-slate-700'
                     }`}
                   >
-                    {category}
+                    {category.icon
+                      ? <Icon name={category.icon} size={16} className="flex-shrink-0" />
+                      : <Layers size={16} className="flex-shrink-0 opacity-50" />
+                    }
+                    {category.name}
                   </button>
                 ))}
               </div>
@@ -166,7 +170,7 @@ const Index = () => {
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Категорий:</span>
-                    <span className="font-semibold">{categories.length - 1}</span>
+                    <span className="font-semibold">{categories.length - 1}</span> 
                   </div>
                 </div>
               </div>

@@ -273,7 +273,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                           : 'text-slate-400 hover:bg-slate-800 border border-transparent'
                       }`}
                     >
-                      <span>{cat.icon}</span>
+                      <Icon name={cat.icon} size={15} fallback="Layers" className="flex-shrink-0" />
                       <span>{cat.name}</span>
                       {selected && <Icon name="Check" size={14} className="ml-auto" />}
                     </button>
@@ -349,7 +349,10 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
               </div>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {article.categories?.map(cat => (
-                  <span key={cat.id} className="text-xs text-orange-400/80">{cat.icon} {cat.name}</span>
+                  <span key={cat.id} className="text-xs text-orange-400/80 flex items-center gap-1">
+                    <Icon name={cat.icon} size={12} fallback="Layers" />
+                    {cat.name}
+                  </span>
                 ))}
                 {article.author_name && (
                   <span className="text-xs text-slate-500">· {article.author_name}</span>
