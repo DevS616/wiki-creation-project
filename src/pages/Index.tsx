@@ -18,6 +18,7 @@ interface Article {
   content: string;
   preview_image?: string;
   author_name?: string;
+  author_role?: string;
 }
 
 interface Category {
@@ -25,6 +26,15 @@ interface Category {
   name: string;
   icon: string;
 }
+
+const roleLabel = (role?: string) => {
+  switch (role) {
+    case 'administrator': return 'Администратор';
+    case 'moderator': return 'Модератор';
+    case 'editor': return 'Редактор';
+    default: return null;
+  }
+};
 
 const Index = () => {
   const { articleId } = useParams<{ articleId?: string }>();
@@ -239,7 +249,12 @@ const Index = () => {
                             {article.description}
                           </p>
                           {article.author_name && (
-                            <p className="text-slate-500 text-xs mt-1">Автор: {article.author_name}</p>
+                            <p className="text-slate-500 text-xs mt-1">
+                              {article.author_name}
+                              {roleLabel(article.author_role) && (
+                                <span className="ml-1 text-orange-400/70">· {roleLabel(article.author_role)}</span>
+                              )}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -281,7 +296,14 @@ const Index = () => {
                       {selectedArticle.description}
                     </p>
                     {selectedArticle.author_name && (
-                      <p className="text-slate-500 text-sm">Автор: <span className="text-slate-400">{selectedArticle.author_name}</span></p>
+                      <p className="text-slate-500 text-sm flex items-center gap-2">
+                        Автор: <span className="text-slate-300">{selectedArticle.author_name}</span>
+                        {roleLabel(selectedArticle.author_role) && (
+                          <span className="px-2 py-0.5 rounded-full bg-orange-600/20 text-orange-400 text-xs border border-orange-600/30">
+                            {roleLabel(selectedArticle.author_role)}
+                          </span>
+                        )}
+                      </p>
                     )}
                   </div>
                   <div className="w-36 h-36 rounded-xl overflow-hidden flex-shrink-0 border border-slate-700 bg-slate-900/60 flex items-center justify-center">

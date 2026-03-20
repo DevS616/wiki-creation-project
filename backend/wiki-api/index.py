@@ -111,7 +111,7 @@ def handle_articles(method: str, event: dict) -> dict:
         if method == 'GET':
             cur.execute("""
                 SELECT a.id, a.title, a.description, a.content, a.category_id, 
-                       a.author_id, u.username as author_name,
+                       a.author_id, u.username as author_name, u.role as author_role,
                        a.created_at, a.updated_at, a.preview_image
                 FROM articles a
                 LEFT JOIN users u ON a.author_id = u.id
@@ -146,9 +146,10 @@ def handle_articles(method: str, event: dict) -> dict:
                     'categories': [{'id': c[0], 'name': c[1], 'icon': c[2]} for c in categories_data],
                     'author_id': a[5],
                     'author_name': a[6],
-                    'created_at': a[7].isoformat() if a[7] else None,
-                    'updated_at': a[8].isoformat() if a[8] else None,
-                    'preview_image': a[9]
+                    'author_role': a[7],
+                    'created_at': a[8].isoformat() if a[8] else None,
+                    'updated_at': a[9].isoformat() if a[9] else None,
+                    'preview_image': a[10]
                 })
             
             return cors_response(200, {'articles': result_articles})
