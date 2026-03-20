@@ -3,6 +3,7 @@ import os
 import psycopg2
 from datetime import datetime
 
+
 def handler(event: dict, context) -> dict:
     """API для управления статьями и категориями Wiki"""
     
