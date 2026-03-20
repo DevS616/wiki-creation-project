@@ -27,6 +27,7 @@ interface Article {
   categories?: Array<{id: number; name: string; icon: string}>;
   author_name?: string;
   preview_image?: string;
+  is_hidden?: boolean;
 }
 
 interface ArticlesTabProps {
@@ -48,6 +49,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isHidden, setIsHidden] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fixLinks = (content: string): string => {
@@ -67,6 +69,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setArticleContent(article.content);
       setPreviewImage(article.preview_image || '');
       setSelectedCategoryIds(article.category_ids?.map(id => id.toString()) || []);
+      setIsHidden(article.is_hidden || false);
     } else {
       setEditArticle(null);
       setTitle('');
@@ -74,6 +77,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setArticleContent('');
       setPreviewImage('');
       setSelectedCategoryIds([]);
+      setIsHidden(false);
     }
     setIsEditorOpen(true);
   };
@@ -99,6 +103,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
           content: fixLinks(articleContent),
           category_ids: selectedCategoryIds.map(id => parseInt(id)),
           preview_image: previewImage || null,
+          is_hidden: isHidden,
         }),
       });
       closeEditor();
@@ -282,6 +287,31 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
               </div>
             </div>
 
+            {/* Видимость */}
+            <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/50">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Публикация</p>
+              <button
+                type="button"
+                onClick={() => setIsHidden(!isHidden)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-colors ${
+                  isHidden
+                    ? 'bg-yellow-500/10 border-yellow-600/40 text-yellow-400'
+                    : 'bg-green-500/10 border-green-600/40 text-green-400'
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Icon name={isHidden ? 'EyeOff' : 'Eye'} size={15} />
+                  {isHidden ? 'Скрыта' : 'Опубликована'}
+                </span>
+                <div className={`w-9 h-5 rounded-full transition-colors relative ${isHidden ? 'bg-yellow-600/50' : 'bg-green-600'}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isHidden ? 'translate-x-0.5' : 'translate-x-4'}`} />
+                </div>
+              </button>
+              {isHidden && (
+                <p className="text-xs text-slate-500 mt-2">Статья видна только в админке</p>
+              )}
+            </div>
+
             {/* ID статьи при редактировании */}
             {editArticle && (
               <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/50">
@@ -290,17 +320,28 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                 {editArticle.author_name && (
                   <p className="text-slate-500 text-xs mt-1">Автор: <span className="text-slate-300">{editArticle.author_name}</span></p>
                 )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 w-full h-7 text-xs border-slate-700 text-slate-400"
-                  onClick={() => copyArticleLink(editArticle.id)}
-                >
-                  {copiedId === editArticle.id
-                    ? <><Check size={12} className="mr-1 text-green-400" />Скопировано</>
-                    : <><Link size={12} className="mr-1" />Скопировать ссылку</>
-                  }
-                </Button>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-7 text-xs border-slate-700 text-slate-400"
+                    onClick={() => copyArticleLink(editArticle.id)}
+                  >
+                    {copiedId === editArticle.id
+                      ? <><Check size={12} className="mr-1 text-green-400" />Скопировано</>
+                      : <><Link size={12} className="mr-1" />Ссылка</>
+                    }
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-7 text-xs border-slate-700 text-slate-400"
+                    onClick={() => window.open(`/${editArticle.id}`, '_blank')}
+                  >
+                    <Icon name="ExternalLink" size={12} className="mr-1" />
+                    Просмотр
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -346,6 +387,11 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-white font-medium truncate">{article.title}</h3>
                 <span className="text-slate-600 text-xs">#{article.id}</span>
+                {article.is_hidden && (
+                  <span className="flex items-center gap-1 text-xs text-yellow-500 bg-yellow-500/10 border border-yellow-600/30 px-1.5 py-0.5 rounded">
+                    <Icon name="EyeOff" size={10} />Скрыта
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 {article.categories?.map(cat => (

@@ -109,12 +109,20 @@ def handle_articles(method: str, event: dict) -> dict:
     
     try:
         if method == 'GET':
-            cur.execute("""
+            # Публичный запрос — только видимые. Авторизованный — все.
+            user = validate_user(event)
+            if user and user['role'] in ('editor', 'moderator', 'administrator'):
+                where_clause = ""
+            else:
+                where_clause = "WHERE a.is_hidden = false"
+
+            cur.execute(f"""
                 SELECT a.id, a.title, a.description, a.content, a.category_id, 
                        a.author_id, u.username as author_name, u.role as author_role,
-                       a.created_at, a.updated_at, a.preview_image
+                       a.created_at, a.updated_at, a.preview_image, a.is_hidden
                 FROM articles a
                 LEFT JOIN users u ON a.author_id = u.id
+                {where_clause}
                 ORDER BY a.updated_at DESC
             """)
             articles = cur.fetchall()
@@ -149,7 +157,8 @@ def handle_articles(method: str, event: dict) -> dict:
                     'author_role': a[7],
                     'created_at': a[8].isoformat() if a[8] else None,
                     'updated_at': a[9].isoformat() if a[9] else None,
-                    'preview_image': a[10]
+                    'preview_image': a[10],
+                    'is_hidden': a[11]
                 })
             
             return cors_response(200, {'articles': result_articles})
@@ -166,6 +175,7 @@ def handle_articles(method: str, event: dict) -> dict:
             content = body.get('content')
             category_ids = body.get('category_ids', [])
             preview_image = body.get('preview_image')
+            is_hidden = body.get('is_hidden', False)
             
             if not all([title, description, content]):
                 return cors_response(400, {'error': 'Missing required fields'})
@@ -176,10 +186,10 @@ def handle_articles(method: str, event: dict) -> dict:
             first_category_id = category_ids[0] if category_ids else None
             
             cur.execute(
-                """INSERT INTO articles (title, description, content, category_id, author_id, preview_image) 
-                   VALUES (%s, %s, %s, %s, %s, %s) 
+                """INSERT INTO articles (title, description, content, category_id, author_id, preview_image, is_hidden) 
+                   VALUES (%s, %s, %s, %s, %s, %s, %s) 
                    RETURNING id, title, description, content, category_id, author_id, created_at, updated_at""",
-                (title, description, content, first_category_id, user['id'], preview_image)
+                (title, description, content, first_category_id, user['id'], preview_image, is_hidden)
             )
             new_article = cur.fetchone()
             article_id = new_article[0]
@@ -249,6 +259,10 @@ def handle_articles(method: str, event: dict) -> dict:
             if 'preview_image' in body:
                 updates.append("preview_image = %s")
                 params.append(body['preview_image'])
+            
+            if 'is_hidden' in body:
+                updates.append("is_hidden = %s")
+                params.append(body['is_hidden'])
             
             if 'category_ids' in body:
                 category_ids = body['category_ids']

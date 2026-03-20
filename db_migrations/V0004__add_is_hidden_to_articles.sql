@@ -1,0 +1,1 @@
+ALTER TABLE t_p66622201_wiki_creation_projec.articles ADD COLUMN is_hidden boolean NOT NULL DEFAULT false;
