@@ -188,7 +188,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                 variant="outline"
                 size="sm"
                 onClick={() => window.open(`/${editArticle.id}`, '_blank')}
-                className="border-slate-600 text-slate-300 hover:text-white"
+                className="border-slate-500 text-slate-200 hover:text-white hover:border-slate-300 bg-slate-700"
               >
                 <Icon name="ExternalLink" size={15} className="mr-2" />
                 Предпросмотр
