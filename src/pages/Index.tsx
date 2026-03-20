@@ -269,21 +269,29 @@ const Index = () => {
                   Назад к списку
                 </button>
                 
-                <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium mb-4">
-                  {selectedArticle.category_name || 'Без категории'}
-                </Badge>
-                
-                <h1 className="text-4xl font-bold text-white mb-4">
-                  {selectedArticle.title}
-                </h1>
-                
-                <p className="text-slate-400 mb-4">
-                  {selectedArticle.description}
-                </p>
-
-                {selectedArticle.author_name && (
-                  <p className="text-slate-500 text-sm mb-8">Автор: <span className="text-slate-400">{selectedArticle.author_name}</span></p>
-                )}
+                <div className="flex items-start justify-between gap-6 mb-8">
+                  <div className="flex-1 min-w-0">
+                    <Badge variant="secondary" className="bg-orange-600/20 text-orange-400 border-orange-600/30 text-sm px-3 py-1 font-medium mb-4">
+                      {selectedArticle.category_name || 'Без категории'}
+                    </Badge>
+                    <h1 className="text-4xl font-bold text-white mb-4">
+                      {selectedArticle.title}
+                    </h1>
+                    <p className="text-slate-400 mb-4">
+                      {selectedArticle.description}
+                    </p>
+                    {selectedArticle.author_name && (
+                      <p className="text-slate-500 text-sm">Автор: <span className="text-slate-400">{selectedArticle.author_name}</span></p>
+                    )}
+                  </div>
+                  <div className="w-36 h-36 rounded-xl overflow-hidden flex-shrink-0 border border-slate-700 bg-slate-900/60 flex items-center justify-center">
+                    {selectedArticle.preview_image ? (
+                      <img src={selectedArticle.preview_image} alt={selectedArticle.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Map size={48} className="text-orange-400 opacity-60" />
+                    )}
+                  </div>
+                </div>
                 
                 <style>{`
                   .prose ul, .prose ol {
