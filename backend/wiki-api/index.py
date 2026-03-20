@@ -412,21 +412,20 @@ def handle_users(method: str, event: dict) -> dict:
 
 
 def get_s3():
-    """S3 клиент для reg.ru"""
+    """S3 клиент встроенного хранилища проекта"""
     import boto3
     return boto3.client('s3',
-        endpoint_url=os.environ['S3_ENDPOINT'],
-        aws_access_key_id=os.environ['S3_ACCESS_KEY'],
-        aws_secret_access_key=os.environ['S3_SECRET_KEY'],
-        region_name='ru-1'
+        endpoint_url='https://bucket.poehali.dev',
+        aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+        aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY']
     )
 
 
 def s3_url(key: str) -> str:
-    """Публичный URL файла"""
-    endpoint = os.environ['S3_ENDPOINT'].rstrip('/')
-    bucket = os.environ['S3_BUCKET']
-    return f"{endpoint}/{bucket}/{key}"
+    """Публичный CDN URL файла"""
+    bucket = 'files'
+    access_key = os.environ['AWS_ACCESS_KEY_ID']
+    return f"https://cdn.poehali.dev/projects/{access_key}/bucket/{key}"
 
 
 def get_content_type(filename: str) -> str:
@@ -460,7 +459,7 @@ def handle_upload_image(method: str, event: dict) -> dict:
     ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
     key = f"wiki/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
     s3 = get_s3()
-    s3.put_object(Bucket=os.environ['S3_BUCKET'], Key=key, Body=image_bytes, ContentType=get_content_type(filename))
+    s3.put_object(Bucket='files', Key=key, Body=image_bytes, ContentType=get_content_type(filename))
     return cors_response(200, {'url': s3_url(key)})
 
 
@@ -493,7 +492,7 @@ def handle_hosting_images(method: str, event: dict) -> dict:
             if body.get('import_existing') and isSuperAdmin:
                 import urllib.request
                 s3 = get_s3()
-                bucket = os.environ['S3_BUCKET']
+                bucket = 'files'
                 imported, failed = 0, 0
                 cur.execute("SELECT id, preview_image FROM articles WHERE preview_image IS NOT NULL AND preview_image != ''")
                 articles = cur.fetchall()
@@ -535,7 +534,7 @@ def handle_hosting_images(method: str, event: dict) -> dict:
             ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
             key = f"hosting/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
             s3 = get_s3()
-            s3.put_object(Bucket=os.environ['S3_BUCKET'], Key=key, Body=image_bytes, ContentType=get_content_type(filename))
+            s3.put_object(Bucket='files', Key=key, Body=image_bytes, ContentType=get_content_type(filename))
             url = s3_url(key)
             cur.execute(
                 "INSERT INTO hosted_images (key, url, filename, size_bytes, uploaded_by) VALUES (%s, %s, %s, %s, %s)",
@@ -551,7 +550,7 @@ def handle_hosting_images(method: str, event: dict) -> dict:
             if not key or not key.startswith('hosting/'):
                 return cors_response(400, {'error': 'Invalid key'})
             s3 = get_s3()
-            s3.delete_object(Bucket=os.environ['S3_BUCKET'], Key=key)
+            s3.delete_object(Bucket='files', Key=key)
             cur.execute("DELETE FROM hosted_images WHERE key = %s", (key,))
             conn.commit()
             return cors_response(200, {'deleted': key})
