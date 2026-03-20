@@ -22,12 +22,10 @@ def handler(event: dict, context) -> dict:
         return handle_users(method, event)
     elif action == 'upload_image':
         return handle_upload_image(method, event)
-    elif action == 'migrate_images':
-        return handle_migrate_images(method, event)
     elif action == 'hosting_images':
         return handle_hosting_images(method, event)
     
-    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users|upload_image|migrate_images|hosting_images'})
+    return cors_response(404, {'error': 'Not found'})
 
 
 def handle_categories(method: str, event: dict) -> dict:
@@ -413,240 +411,149 @@ def handle_users(method: str, event: dict) -> dict:
     return cors_response(405, {'error': 'Method not allowed'})
 
 
-def get_regru_s3():
-    """Создает клиент S3 для reg.ru"""
+def get_s3():
+    """S3 клиент для reg.ru"""
     import boto3
-    from botocore.config import Config
     return boto3.client('s3',
-        endpoint_url=os.environ['REGRU_S3_ENDPOINT'],
-        aws_access_key_id=os.environ['REGRU_ACCESS_KEY_ID'],
-        aws_secret_access_key=os.environ['REGRU_SECRET_ACCESS_KEY'],
-        config=Config(s3={'addressing_style': 'virtual'})
+        endpoint_url=os.environ['S3_ENDPOINT'],
+        aws_access_key_id=os.environ['S3_ACCESS_KEY'],
+        aws_secret_access_key=os.environ['S3_SECRET_KEY'],
+        region_name='ru-1'
     )
 
 
-def get_regru_cdn_url(key: str) -> str:
-    """Возвращает публичный URL файла в reg.ru S3"""
-    endpoint = os.environ['REGRU_S3_ENDPOINT'].rstrip('/')
-    bucket = os.environ['REGRU_BUCKET_NAME']
+def s3_url(key: str) -> str:
+    """Публичный URL файла"""
+    endpoint = os.environ['S3_ENDPOINT'].rstrip('/')
+    bucket = os.environ['S3_BUCKET']
     return f"{endpoint}/{bucket}/{key}"
 
 
+def get_content_type(filename: str) -> str:
+    f = filename.lower()
+    if f.endswith(('.jpg', '.jpeg')): return 'image/jpeg'
+    if f.endswith('.gif'): return 'image/gif'
+    if f.endswith('.webp'): return 'image/webp'
+    return 'image/png'
+
+
 def handle_upload_image(method: str, event: dict) -> dict:
-    """Загрузка изображений в S3 reg.ru"""
-    
+    """Загрузка превью-картинок для статей (редакторы+)"""
     if method != 'POST':
         return cors_response(405, {'error': 'Method not allowed'})
-    
-    user = validate_user(event)
-    if not user:
-        return cors_response(403, {'error': 'Authentication required'})
-    
-    try:
-        import base64
-        import uuid
-        
-        body = json.loads(event.get('body', '{}'))
-        image_data = body.get('image', '')
-        filename = body.get('filename', 'image.png')
-        
-        if ',' in image_data:
-            image_data = image_data.split(',')[1]
-        
-        image_bytes = base64.b64decode(image_data)
-        
-        content_type = 'image/png'
-        if filename.lower().endswith(('.jpg', '.jpeg')):
-            content_type = 'image/jpeg'
-        elif filename.lower().endswith('.gif'):
-            content_type = 'image/gif'
-        elif filename.lower().endswith('.webp'):
-            content_type = 'image/webp'
-        
-        s3 = get_regru_s3()
-        bucket = os.environ['REGRU_BUCKET_NAME']
-        
-        file_ext = filename.split('.')[-1] if '.' in filename else 'png'
-        unique_name = f"wiki/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
-        
-        s3.put_object(
-            Bucket=bucket,
-            Key=unique_name,
-            Body=image_bytes,
-            ContentType=content_type
-        )
-        
-        cdn_url = get_regru_cdn_url(unique_name)
-        
-        return cors_response(200, {'url': cdn_url})
-    
-    except Exception as e:
-        print(f"Upload error: {str(e)}")
-        return cors_response(500, {'error': f'Upload failed: {str(e)}'})
-
-
-def handle_migrate_images(method: str, event: dict) -> dict:
-    """Перенос изображений в reg.ru S3. GET — список статей для миграции, POST — мигрировать одну статью по article_id"""
-    
-    user = validate_user(event)
-    if not user or user['role'] != 'administrator':
-        return cors_response(403, {'error': 'Access denied'})
-    
-    import urllib.request
-    import uuid
-    
-    regru_endpoint = os.environ['REGRU_S3_ENDPOINT'].rstrip('/')
-    bucket = os.environ['REGRU_BUCKET_NAME']
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        if method == 'GET':
-            cur.execute("SELECT id, preview_image FROM articles WHERE preview_image IS NOT NULL AND preview_image != ''")
-            articles = cur.fetchall()
-            result = []
-            for article_id, url in articles:
-                already = f"{regru_endpoint}/{bucket}" in url
-                result.append({'id': article_id, 'url': url, 'migrated': already})
-            return cors_response(200, {'articles': result})
-        
-        elif method == 'POST':
-            body = json.loads(event.get('body', '{}'))
-            article_id = body.get('article_id')
-            if not article_id:
-                return cors_response(400, {'error': 'article_id required'})
-            
-            cur.execute("SELECT preview_image FROM articles WHERE id = %s", (article_id,))
-            row = cur.fetchone()
-            if not row or not row[0]:
-                return cors_response(404, {'error': 'Article or image not found'})
-            
-            old_url = row[0]
-            
-            if f"{regru_endpoint}/{bucket}" in old_url:
-                return cors_response(200, {'status': 'skipped', 'reason': 'already on regru', 'url': old_url})
-            
-            req = urllib.request.Request(old_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                image_bytes = resp.read()
-                content_type = resp.headers.get('Content-Type', 'image/png')
-            
-            ext = 'png'
-            if 'jpeg' in content_type or 'jpg' in content_type:
-                ext = 'jpg'
-            elif 'gif' in content_type:
-                ext = 'gif'
-            elif 'webp' in content_type:
-                ext = 'webp'
-            elif '.' in old_url.split('?')[0]:
-                ext = old_url.split('?')[0].split('.')[-1].lower()[:4]
-            
-            key = f"wiki/migrated/{uuid.uuid4().hex}.{ext}"
-            s3 = get_regru_s3()
-            s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type, ACL='public-read')
-            
-            new_url = get_regru_cdn_url(key)
-            cur.execute("UPDATE articles SET preview_image = %s WHERE id = %s", (new_url, article_id))
-            conn.commit()
-            
-            print(f"Migrated article {article_id}: {new_url}")
-            return cors_response(200, {'status': 'migrated', 'article_id': article_id, 'new_url': new_url})
-        
-        return cors_response(405, {'error': 'Method not allowed'})
-    
-    except Exception as e:
-        print(f"Migration error: {str(e)}")
-        return cors_response(500, {'error': f'Migration failed: {str(e)}'})
-    
-    finally:
-        cur.close()
-        conn.close()
-
-
-def handle_hosting_images(method: str, event: dict) -> dict:
-    """Хостинг картинок: GET — список из БД, POST — загрузить в S3 + записать в БД, DELETE — удалить из S3 + БД"""
-
     user = validate_user(event)
     if not user or user['role'] not in ('editor', 'moderator', 'administrator'):
         return cors_response(403, {'error': 'Access denied'})
 
+    import base64, uuid
+    body = json.loads(event.get('body', '{}'))
+    image_data = body.get('image', '')
+    filename = body.get('filename', 'image.png')
+    if ',' in image_data:
+        image_data = image_data.split(',')[1]
+    image_bytes = base64.b64decode(image_data)
+
+    MAX_SIZE = 5 * 1024 * 1024
+    if len(image_bytes) > MAX_SIZE:
+        return cors_response(400, {'error': 'Файл слишком большой. Максимум 5 МБ'})
+
+    ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
+    key = f"wiki/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
+    s3 = get_s3()
+    s3.put_object(Bucket=os.environ['S3_BUCKET'], Key=key, Body=image_bytes, ContentType=get_content_type(filename))
+    return cors_response(200, {'url': s3_url(key)})
+
+
+def handle_hosting_images(method: str, event: dict) -> dict:
+    """Хостинг картинок: GET — список, POST — загрузить, DELETE — удалить, POST?import=1 — импорт из img.devilrust (супер-админ)"""
+    user = validate_user(event)
+    if not user or user['role'] not in ('editor', 'moderator', 'administrator'):
+        return cors_response(403, {'error': 'Access denied'})
+
+    SUPER_ADMIN = '76561198995407853'
+    isSuperAdmin = user.get('steam_id') == SUPER_ADMIN
+
     conn = get_db_connection()
     cur = conn.cursor()
-    prefix = 'hosting/'
 
     try:
         if method == 'GET':
-            cur.execute(
-                "SELECT key, url, filename, size_bytes, created_at FROM hosted_images ORDER BY created_at DESC"
-            )
+            cur.execute("SELECT key, url, filename, size_bytes, created_at FROM hosted_images ORDER BY created_at DESC")
             rows = cur.fetchall()
-            images = [
-                {'key': r[0], 'url': r[1], 'filename': r[2], 'size': r[3], 'last_modified': r[4].isoformat()}
+            return cors_response(200, {'images': [
+                {'key': r[0], 'url': r[1], 'filename': r[2], 'size': r[3], 'uploaded_at': r[4].isoformat()}
                 for r in rows
-            ]
-            return cors_response(200, {'images': images})
+            ]})
 
         elif method == 'POST':
-            import base64
-            import uuid
-
+            import base64, uuid
             body = json.loads(event.get('body', '{}'))
+
+            # Импорт существующих картинок из img.devilrust (только супер-админ)
+            if body.get('import_existing') and isSuperAdmin:
+                import urllib.request
+                s3 = get_s3()
+                bucket = os.environ['S3_BUCKET']
+                imported, failed = 0, 0
+                cur.execute("SELECT id, preview_image FROM articles WHERE preview_image IS NOT NULL AND preview_image != ''")
+                articles = cur.fetchall()
+                for article_id, img_url in articles:
+                    if not img_url or 'hosting/' in img_url:
+                        continue
+                    try:
+                        req = urllib.request.Request(img_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req, timeout=15) as resp:
+                            img_bytes = resp.read()
+                            ct = resp.headers.get('Content-Type', 'image/png')
+                        ext = img_url.split('?')[0].split('.')[-1].lower()[:4] or 'png'
+                        key = f"hosting/imported/{uuid.uuid4().hex}.{ext}"
+                        s3.put_object(Bucket=bucket, Key=key, Body=img_bytes, ContentType=ct)
+                        new_url = s3_url(key)
+                        cur.execute("UPDATE articles SET preview_image = %s WHERE id = %s", (new_url, article_id))
+                        cur.execute(
+                            "INSERT INTO hosted_images (key, url, filename, size_bytes, uploaded_by) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (key) DO NOTHING",
+                            (key, new_url, key.split('/')[-1], len(img_bytes), user['id'])
+                        )
+                        conn.commit()
+                        imported += 1
+                    except Exception as e:
+                        print(f"Import failed for article {article_id}: {e}")
+                        failed += 1
+                return cors_response(200, {'imported': imported, 'failed': failed})
+
+            # Обычная загрузка
             image_data = body.get('image', '')
             filename = body.get('filename', 'image.png')
-
             if ',' in image_data:
                 image_data = image_data.split(',')[1]
-
             image_bytes = base64.b64decode(image_data)
 
-            content_type = 'image/png'
-            fname_lower = filename.lower()
-            if fname_lower.endswith(('.jpg', '.jpeg')):
-                content_type = 'image/jpeg'
-            elif fname_lower.endswith('.gif'):
-                content_type = 'image/gif'
-            elif fname_lower.endswith('.webp'):
-                content_type = 'image/webp'
+            MAX_SIZE = 10 * 1024 * 1024
+            if len(image_bytes) > MAX_SIZE:
+                return cors_response(400, {'error': 'Файл слишком большой. Максимум 10 МБ'})
 
-            file_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
-            key = f"{prefix}{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
-
-            s3 = get_regru_s3()
-            bucket = os.environ['REGRU_BUCKET_NAME']
-            endpoint = os.environ['REGRU_S3_ENDPOINT']
-            print(f"S3 upload: endpoint={endpoint}, bucket={bucket}, key={key}, size={len(image_bytes)}")
-            try:
-                s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type)
-            except Exception as s3_err:
-                print(f"S3 PutObject error: {s3_err}")
-                raise
-
-            cdn_url = get_regru_cdn_url(key)
-
+            ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
+            key = f"hosting/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
+            s3 = get_s3()
+            s3.put_object(Bucket=os.environ['S3_BUCKET'], Key=key, Body=image_bytes, ContentType=get_content_type(filename))
+            url = s3_url(key)
             cur.execute(
                 "INSERT INTO hosted_images (key, url, filename, size_bytes, uploaded_by) VALUES (%s, %s, %s, %s, %s)",
-                (key, cdn_url, filename, len(image_bytes), user['id'])
+                (key, url, filename, len(image_bytes), user['id'])
             )
             conn.commit()
-
-            print(f"Hosting upload by {user['username']}: {cdn_url}")
-            return cors_response(200, {'url': cdn_url, 'key': key})
+            print(f"Hosted upload by {user['username']}: {url}")
+            return cors_response(200, {'url': url, 'key': key})
 
         elif method == 'DELETE':
             body = json.loads(event.get('body', '{}'))
             key = body.get('key', '')
-            if not key or not key.startswith(prefix):
+            if not key or not key.startswith('hosting/'):
                 return cors_response(400, {'error': 'Invalid key'})
-
-            s3 = get_regru_s3()
-            bucket = os.environ['REGRU_BUCKET_NAME']
-            s3.delete_object(Bucket=bucket, Key=key)
-
+            s3 = get_s3()
+            s3.delete_object(Bucket=os.environ['S3_BUCKET'], Key=key)
             cur.execute("DELETE FROM hosted_images WHERE key = %s", (key,))
             conn.commit()
-
-            print(f"Hosting delete by {user['username']}: {key}")
             return cors_response(200, {'deleted': key})
 
         return cors_response(405, {'error': 'Method not allowed'})

@@ -43,8 +43,6 @@ const AdminPanel = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [migrating, setMigrating] = useState(false);
-  const [migrateResult, setMigrateResult] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -54,12 +52,7 @@ const AdminPanel = () => {
   const checkAuth = () => {
     const token = localStorage.getItem('admin_token');
     const userStr = localStorage.getItem('admin_user');
-
-    if (!token || !userStr) {
-      navigate('/adm');
-      return;
-    }
-
+    if (!token || !userStr) { navigate('/adm'); return; }
     try {
       const user = JSON.parse(userStr);
       setCurrentUser(user);
@@ -71,71 +64,27 @@ const AdminPanel = () => {
   const loadData = async () => {
     const token = localStorage.getItem('admin_token');
     if (!token) return;
-
     try {
-      const categoriesRes = await fetch(`${API_URL}?action=categories`);
-      const categoriesData = await categoriesRes.json();
-      setCategories(categoriesData.categories || []);
-
-      const articlesRes = await fetch(`${API_URL}?action=articles`);
-      const articlesData = await articlesRes.json();
-      setArticles(articlesData.articles || []);
+      const [catRes, artRes] = await Promise.all([
+        fetch(`${API_URL}?action=categories`),
+        fetch(`${API_URL}?action=articles`),
+      ]);
+      setCategories((await catRes.json()).categories || []);
+      setArticles((await artRes.json()).articles || []);
 
       const userStr = localStorage.getItem('admin_user');
       if (userStr) {
         const user = JSON.parse(userStr);
         if (user.steam_id === '76561198995407853') {
           const usersRes = await fetch(`${API_URL}?action=users`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
           });
-          const usersData = await usersRes.json();
-          setUsers(usersData.users || []);
+          setUsers((await usersRes.json()).users || []);
         }
       }
     } catch (err) {
       console.error('Failed to load data:', err);
     }
-  };
-
-  const handleMigrateImages = async () => {
-    const token = localStorage.getItem('admin_token');
-    if (!token) return;
-    setMigrating(true);
-    setMigrateResult(null);
-    try {
-      const listRes = await fetch(`${API_URL}?action=migrate_images`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const listData = await listRes.json();
-      const toMigrate = (listData.articles || []).filter((a: {migrated: boolean}) => !a.migrated);
-      
-      if (toMigrate.length === 0) {
-        setMigrateResult('Все картинки уже перенесены');
-        setMigrating(false);
-        return;
-      }
-
-      let done = 0, failed = 0;
-      for (const article of toMigrate) {
-        setMigrateResult(`Переносим ${done + 1} из ${toMigrate.length}...`);
-        try {
-          const res = await fetch(`${API_URL}?action=migrate_images`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ article_id: article.id })
-          });
-          const data = await res.json();
-          if (data.status === 'migrated' || data.status === 'skipped') done++;
-          else failed++;
-        } catch {
-          failed++;
-        }
-      }
-      setMigrateResult(`Готово: перенесено ${done}, ошибок ${failed}`);
-    } catch {
-      setMigrateResult('Ошибка соединения');
-    }
-    setMigrating(false);
   };
 
   const handleLogout = () => {
@@ -144,11 +93,8 @@ const AdminPanel = () => {
     navigate('/adm');
   };
 
-  if (!currentUser) {
-    return null;
-  }
+  if (!currentUser) return null;
 
-  // Если у пользователя нет доступа - показываем блокирующее окно
   if (currentUser.role === 'no_access') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -159,7 +105,7 @@ const AdminPanel = () => {
             </div>
             <h2 className="text-2xl font-bold text-white mb-3">Доступ запрещён</h2>
             <p className="text-slate-400 mb-4">
-              У вас нет прав для доступа к админ-панели. 
+              У вас нет прав для доступа к админ-панели.
               <br />
               Обратитесь к администратору для получения доступа.
             </p>
@@ -169,11 +115,7 @@ const AdminPanel = () => {
             </div>
           </div>
           <Button
-            onClick={() => {
-              localStorage.removeItem('admin_token');
-              localStorage.removeItem('admin_user');
-              navigate('/adm');
-            }}
+            onClick={() => { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_user'); navigate('/adm'); }}
             className="w-full bg-orange-600 hover:bg-orange-700"
           >
             Выйти
@@ -187,6 +129,7 @@ const AdminPanel = () => {
   const canDelete = ['moderator', 'administrator'].includes(currentUser.role);
   const isAdmin = currentUser.role === 'administrator';
   const isSuperAdmin = currentUser.steam_id === '76561198995407853';
+  const token = localStorage.getItem('admin_token') || '';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -212,20 +155,6 @@ const AdminPanel = () => {
                   <p className="text-slate-400 text-xs capitalize">{currentUser.role}</p>
                 </div>
               </div>
-              {isSuperAdmin && (
-                <div className="flex flex-col items-end gap-1">
-                  <Button
-                    onClick={handleMigrateImages}
-                    disabled={migrating}
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-600 text-slate-300 hover:text-white"
-                  >
-                    {migrating ? 'Переносим...' : 'Перенести картинки на reg.ru'}
-                  </Button>
-                  {migrateResult && <p className="text-xs text-slate-400">{migrateResult}</p>}
-                </div>
-              )}
               <Button onClick={handleLogout} variant="outline" size="sm" className="border-slate-700">
                 <LogOut size={16} />
               </Button>
@@ -238,60 +167,44 @@ const AdminPanel = () => {
         <Tabs defaultValue="articles" className="w-full">
           <TabsList className="bg-slate-800/50 border border-slate-700">
             <TabsTrigger value="articles" className="data-[state=active]:bg-orange-600">
-              <FileText size={16} className="mr-2" />
-              Статьи
+              <FileText size={16} className="mr-2" />Статьи
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="categories" className="data-[state=active]:bg-orange-600">
-                <Layers size={16} className="mr-2" />
-                Категории
+                <Layers size={16} className="mr-2" />Категории
               </TabsTrigger>
             )}
             {canEdit && (
               <TabsTrigger value="images" className="data-[state=active]:bg-orange-600">
-                <Icon name="Image" size={16} className="mr-2" />
-                Картинки
+                <Icon name="Image" size={16} className="mr-2" />Картинки
               </TabsTrigger>
             )}
             {isSuperAdmin && (
               <TabsTrigger value="users" className="data-[state=active]:bg-orange-600">
-                <Users size={16} className="mr-2" />
-                Пользователи
+                <Users size={16} className="mr-2" />Пользователи
               </TabsTrigger>
             )}
           </TabsList>
 
           <TabsContent value="articles">
-            <ArticlesTab 
-              articles={articles}
-              categories={categories}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              loadData={loadData}
-            />
+            <ArticlesTab articles={articles} categories={categories} canEdit={canEdit} canDelete={canDelete} loadData={loadData} />
           </TabsContent>
 
           {isAdmin && (
             <TabsContent value="categories">
-              <CategoriesTab 
-                categories={categories}
-                loadData={loadData}
-              />
+              <CategoriesTab categories={categories} loadData={loadData} />
             </TabsContent>
           )}
 
           {canEdit && (
             <TabsContent value="images">
-              <ImageHostingTab token={localStorage.getItem('admin_token') || ''} />
+              <ImageHostingTab token={token} isSuperAdmin={isSuperAdmin} />
             </TabsContent>
           )}
 
           {isSuperAdmin && (
             <TabsContent value="users">
-              <UsersTab 
-                users={users}
-                loadData={loadData}
-              />
+              <UsersTab users={users} loadData={loadData} />
             </TabsContent>
           )}
         </Tabs>
