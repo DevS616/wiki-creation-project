@@ -8,6 +8,7 @@ import Icon from '@/components/ui/icon';
 import ArticlesTab from '@/components/admin/ArticlesTab';
 import CategoriesTab from '@/components/admin/CategoriesTab';
 import UsersTab from '@/components/admin/UsersTab';
+import ImageHostingTab from '@/components/admin/ImageHostingTab';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -246,6 +247,12 @@ const AdminPanel = () => {
                 Категории
               </TabsTrigger>
             )}
+            {canEdit && (
+              <TabsTrigger value="images" className="data-[state=active]:bg-orange-600">
+                <Icon name="Image" size={16} className="mr-2" />
+                Картинки
+              </TabsTrigger>
+            )}
             {isSuperAdmin && (
               <TabsTrigger value="users" className="data-[state=active]:bg-orange-600">
                 <Users size={16} className="mr-2" />
@@ -270,6 +277,12 @@ const AdminPanel = () => {
                 categories={categories}
                 loadData={loadData}
               />
+            </TabsContent>
+          )}
+
+          {canEdit && (
+            <TabsContent value="images">
+              <ImageHostingTab token={localStorage.getItem('admin_token') || ''} />
             </TabsContent>
           )}
 

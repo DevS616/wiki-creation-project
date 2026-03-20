@@ -23,8 +23,10 @@ def handler(event: dict, context) -> dict:
         return handle_upload_image(method, event)
     elif action == 'migrate_images':
         return handle_migrate_images(method, event)
+    elif action == 'hosting_images':
+        return handle_hosting_images(method, event)
     
-    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users|upload_image|migrate_images'})
+    return cors_response(404, {'error': 'Not found. Use ?action=categories|articles|users|upload_image|migrate_images|hosting_images'})
 
 
 def handle_categories(method: str, event: dict) -> dict:
@@ -558,6 +560,75 @@ def handle_migrate_images(method: str, event: dict) -> dict:
     finally:
         cur.close()
         conn.close()
+
+
+def handle_hosting_images(method: str, event: dict) -> dict:
+    """Хостинг картинок: GET — список, POST — загрузить, DELETE — удалить"""
+
+    user = validate_user(event)
+    if not user or user['role'] not in ('editor', 'moderator', 'administrator'):
+        return cors_response(403, {'error': 'Access denied'})
+
+    s3 = get_regru_s3()
+    bucket = os.environ['REGRU_BUCKET_NAME']
+    prefix = 'hosting/'
+
+    if method == 'GET':
+        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        items = []
+        for obj in response.get('Contents', []):
+            key = obj['Key']
+            if key == prefix:
+                continue
+            items.append({
+                'key': key,
+                'url': get_regru_cdn_url(key),
+                'size': obj['Size'],
+                'last_modified': obj['LastModified'].isoformat()
+            })
+        items.sort(key=lambda x: x['last_modified'], reverse=True)
+        return cors_response(200, {'images': items})
+
+    elif method == 'POST':
+        import base64
+        import uuid
+
+        body = json.loads(event.get('body', '{}'))
+        image_data = body.get('image', '')
+        filename = body.get('filename', 'image.png')
+
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+
+        image_bytes = base64.b64decode(image_data)
+
+        content_type = 'image/png'
+        fname_lower = filename.lower()
+        if fname_lower.endswith(('.jpg', '.jpeg')):
+            content_type = 'image/jpeg'
+        elif fname_lower.endswith('.gif'):
+            content_type = 'image/gif'
+        elif fname_lower.endswith('.webp'):
+            content_type = 'image/webp'
+
+        file_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
+        key = f"{prefix}{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
+
+        s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type, ACL='public-read')
+        cdn_url = get_regru_cdn_url(key)
+        print(f"Hosting upload by {user['username']}: {cdn_url}")
+        return cors_response(200, {'url': cdn_url, 'key': key})
+
+    elif method == 'DELETE':
+        body = json.loads(event.get('body', '{}'))
+        key = body.get('key', '')
+        if not key or not key.startswith(prefix):
+            return cors_response(400, {'error': 'Invalid key'})
+        s3.delete_object(Bucket=bucket, Key=key)
+        print(f"Hosting delete by {user['username']}: {key}")
+        return cors_response(200, {'deleted': key})
+
+    return cors_response(405, {'error': 'Method not allowed'})
 
 
 def validate_user(event: dict) -> dict:
