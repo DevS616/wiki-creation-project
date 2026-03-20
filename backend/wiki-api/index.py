@@ -470,8 +470,7 @@ def handle_upload_image(method: str, event: dict) -> dict:
             Bucket=bucket,
             Key=unique_name,
             Body=image_bytes,
-            ContentType=content_type,
-            ACL='public-read'
+            ContentType=content_type
         )
         
         cdn_url = get_regru_cdn_url(unique_name)
@@ -563,72 +562,89 @@ def handle_migrate_images(method: str, event: dict) -> dict:
 
 
 def handle_hosting_images(method: str, event: dict) -> dict:
-    """Хостинг картинок: GET — список, POST — загрузить, DELETE — удалить"""
+    """Хостинг картинок: GET — список из БД, POST — загрузить в S3 + записать в БД, DELETE — удалить из S3 + БД"""
 
     user = validate_user(event)
     if not user or user['role'] not in ('editor', 'moderator', 'administrator'):
         return cors_response(403, {'error': 'Access denied'})
 
-    s3 = get_regru_s3()
-    bucket = os.environ['REGRU_BUCKET_NAME']
+    conn = get_db_connection()
+    cur = conn.cursor()
     prefix = 'hosting/'
 
-    if method == 'GET':
-        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        items = []
-        for obj in response.get('Contents', []):
-            key = obj['Key']
-            if key == prefix:
-                continue
-            items.append({
-                'key': key,
-                'url': get_regru_cdn_url(key),
-                'size': obj['Size'],
-                'last_modified': obj['LastModified'].isoformat()
-            })
-        items.sort(key=lambda x: x['last_modified'], reverse=True)
-        return cors_response(200, {'images': items})
+    try:
+        if method == 'GET':
+            cur.execute(
+                "SELECT key, url, filename, size_bytes, created_at FROM hosted_images ORDER BY created_at DESC"
+            )
+            rows = cur.fetchall()
+            images = [
+                {'key': r[0], 'url': r[1], 'filename': r[2], 'size': r[3], 'last_modified': r[4].isoformat()}
+                for r in rows
+            ]
+            return cors_response(200, {'images': images})
 
-    elif method == 'POST':
-        import base64
-        import uuid
+        elif method == 'POST':
+            import base64
+            import uuid
 
-        body = json.loads(event.get('body', '{}'))
-        image_data = body.get('image', '')
-        filename = body.get('filename', 'image.png')
+            body = json.loads(event.get('body', '{}'))
+            image_data = body.get('image', '')
+            filename = body.get('filename', 'image.png')
 
-        if ',' in image_data:
-            image_data = image_data.split(',')[1]
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
 
-        image_bytes = base64.b64decode(image_data)
+            image_bytes = base64.b64decode(image_data)
 
-        content_type = 'image/png'
-        fname_lower = filename.lower()
-        if fname_lower.endswith(('.jpg', '.jpeg')):
-            content_type = 'image/jpeg'
-        elif fname_lower.endswith('.gif'):
-            content_type = 'image/gif'
-        elif fname_lower.endswith('.webp'):
-            content_type = 'image/webp'
+            content_type = 'image/png'
+            fname_lower = filename.lower()
+            if fname_lower.endswith(('.jpg', '.jpeg')):
+                content_type = 'image/jpeg'
+            elif fname_lower.endswith('.gif'):
+                content_type = 'image/gif'
+            elif fname_lower.endswith('.webp'):
+                content_type = 'image/webp'
 
-        file_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
-        key = f"{prefix}{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
+            file_ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
+            key = f"{prefix}{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{file_ext}"
 
-        s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type, ACL='public-read')
-        cdn_url = get_regru_cdn_url(key)
-        print(f"Hosting upload by {user['username']}: {cdn_url}")
-        return cors_response(200, {'url': cdn_url, 'key': key})
+            s3 = get_regru_s3()
+            bucket = os.environ['REGRU_BUCKET_NAME']
+            s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type)
 
-    elif method == 'DELETE':
-        body = json.loads(event.get('body', '{}'))
-        key = body.get('key', '')
-        if not key or not key.startswith(prefix):
-            return cors_response(400, {'error': 'Invalid key'})
-        s3.delete_object(Bucket=bucket, Key=key)
-        print(f"Hosting delete by {user['username']}: {key}")
-        return cors_response(200, {'deleted': key})
+            cdn_url = get_regru_cdn_url(key)
 
-    return cors_response(405, {'error': 'Method not allowed'})
+            cur.execute(
+                "INSERT INTO hosted_images (key, url, filename, size_bytes, uploaded_by) VALUES (%s, %s, %s, %s, %s)",
+                (key, cdn_url, filename, len(image_bytes), user['id'])
+            )
+            conn.commit()
+
+            print(f"Hosting upload by {user['username']}: {cdn_url}")
+            return cors_response(200, {'url': cdn_url, 'key': key})
+
+        elif method == 'DELETE':
+            body = json.loads(event.get('body', '{}'))
+            key = body.get('key', '')
+            if not key or not key.startswith(prefix):
+                return cors_response(400, {'error': 'Invalid key'})
+
+            s3 = get_regru_s3()
+            bucket = os.environ['REGRU_BUCKET_NAME']
+            s3.delete_object(Bucket=bucket, Key=key)
+
+            cur.execute("DELETE FROM hosted_images WHERE key = %s", (key,))
+            conn.commit()
+
+            print(f"Hosting delete by {user['username']}: {key}")
+            return cors_response(200, {'deleted': key})
+
+        return cors_response(405, {'error': 'Method not allowed'})
+
+    finally:
+        cur.close()
+        conn.close()
 
 
 def validate_user(event: dict) -> dict:
