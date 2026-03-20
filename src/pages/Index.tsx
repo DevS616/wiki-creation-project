@@ -17,6 +17,7 @@ interface Article {
   description: string;
   content: string;
   preview_image?: string;
+  author_name?: string;
 }
 
 interface Category {
@@ -227,11 +228,7 @@ const Index = () => {
                           </div>
                         ) : (
                           <div className="w-12 h-12 rounded-lg bg-orange-600/10 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600/20 transition-colors">
-                            {article.category_name === 'Основное' && <BookOpen size={22} className="text-orange-400" />}
-                            {article.category_name === 'Гайды' && <Map size={22} className="text-orange-400" />}
-                            {article.category_name === 'Механики' && <Wrench size={22} className="text-orange-400" />}
-                            {article.category_name === 'Кастомные предметы' && <Package size={22} className="text-orange-400" />}
-                            {article.category_name === 'Развлекательные ивенты' && <Sparkles size={22} className="text-orange-400" />}
+                            <Map size={22} className="text-orange-400" />
                           </div>
                         )}
                         <div className="flex-1">
@@ -241,6 +238,9 @@ const Index = () => {
                           <p className="text-slate-400 text-sm line-clamp-2 mt-1">
                             {article.description}
                           </p>
+                          {article.author_name && (
+                            <p className="text-slate-500 text-xs mt-1">Автор: {article.author_name}</p>
+                          )}
                         </div>
                       </div>
                     </Card>
@@ -277,9 +277,13 @@ const Index = () => {
                   {selectedArticle.title}
                 </h1>
                 
-                <p className="text-slate-400 mb-8">
+                <p className="text-slate-400 mb-4">
                   {selectedArticle.description}
                 </p>
+
+                {selectedArticle.author_name && (
+                  <p className="text-slate-500 text-sm mb-8">Автор: <span className="text-slate-400">{selectedArticle.author_name}</span></p>
+                )}
                 
                 <style>{`
                   .prose ul, .prose ol {
