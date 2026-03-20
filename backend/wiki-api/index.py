@@ -415,10 +415,12 @@ def handle_users(method: str, event: dict) -> dict:
 def get_regru_s3():
     """Создает клиент S3 для reg.ru"""
     import boto3
+    from botocore.config import Config
     return boto3.client('s3',
         endpoint_url=os.environ['REGRU_S3_ENDPOINT'],
         aws_access_key_id=os.environ['REGRU_ACCESS_KEY_ID'],
-        aws_secret_access_key=os.environ['REGRU_SECRET_ACCESS_KEY']
+        aws_secret_access_key=os.environ['REGRU_SECRET_ACCESS_KEY'],
+        config=Config(s3={'addressing_style': 'virtual'})
     )
 
 
