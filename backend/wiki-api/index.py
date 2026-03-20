@@ -170,18 +170,18 @@ def handle_articles(method: str, event: dict) -> dict:
             if not user:
                 return cors_response(403, {'error': 'Authentication required'})
             
-            title = body.get('title')
-            description = body.get('description')
-            content = body.get('content')
+            title = body.get('title', '').strip()
+            description = body.get('description', '').strip()
+            content = body.get('content', '').strip()
             category_ids = body.get('category_ids', [])
             preview_image = body.get('preview_image')
             is_hidden = body.get('is_hidden', False)
             
-            if not all([title, description, content]):
-                return cors_response(400, {'error': 'Missing required fields'})
+            if not title or not content:
+                return cors_response(400, {'error': 'Заголовок и контент обязательны'})
             
             if not category_ids:
-                return cors_response(400, {'error': 'At least one category is required'})
+                return cors_response(400, {'error': 'Выберите хотя бы одну категорию'})
             
             first_category_id = category_ids[0] if category_ids else None
             

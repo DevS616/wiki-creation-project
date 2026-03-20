@@ -182,16 +182,29 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
             <span className="text-slate-400 text-sm">{editArticle ? 'Редактирование' : 'Новая статья'}</span>
             {title && <span className="text-white text-sm font-medium truncate max-w-xs">{title}</span>}
           </div>
-          <Button
-            onClick={handleSaveArticle}
-            disabled={saving || !title.trim()}
-            className="bg-orange-600 hover:bg-orange-700"
-          >
-            {saving
-              ? <><Icon name="Loader2" size={16} className="mr-2 animate-spin" />Сохраняем...</>
-              : <><Save size={16} className="mr-2" />{editArticle ? 'Сохранить' : 'Опубликовать'}</>
-            }
-          </Button>
+          <div className="flex gap-2">
+            {editArticle && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(`/${editArticle.id}`, '_blank')}
+                className="border-slate-600 text-slate-300 hover:text-white"
+              >
+                <Icon name="ExternalLink" size={15} className="mr-2" />
+                Предпросмотр
+              </Button>
+            )}
+            <Button
+              onClick={handleSaveArticle}
+              disabled={saving || !title.trim()}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {saving
+                ? <><Icon name="Loader2" size={16} className="mr-2 animate-spin" />Сохраняем...</>
+                : <><Save size={16} className="mr-2" />{editArticle ? 'Сохранить' : 'Опубликовать'}</>
+              }
+            </Button>
+          </div>
         </div>
 
         <div className="flex gap-6">
@@ -320,28 +333,17 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
                 {editArticle.author_name && (
                   <p className="text-slate-500 text-xs mt-1">Автор: <span className="text-slate-300">{editArticle.author_name}</span></p>
                 )}
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 h-7 text-xs border-slate-700 text-slate-400"
-                    onClick={() => copyArticleLink(editArticle.id)}
-                  >
-                    {copiedId === editArticle.id
-                      ? <><Check size={12} className="mr-1 text-green-400" />Скопировано</>
-                      : <><Link size={12} className="mr-1" />Ссылка</>
-                    }
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 h-7 text-xs border-slate-700 text-slate-400"
-                    onClick={() => window.open(`/${editArticle.id}`, '_blank')}
-                  >
-                    <Icon name="ExternalLink" size={12} className="mr-1" />
-                    Просмотр
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 w-full h-7 text-xs border-slate-700 text-slate-400"
+                  onClick={() => copyArticleLink(editArticle.id)}
+                >
+                  {copiedId === editArticle.id
+                    ? <><Check size={12} className="mr-1 text-green-400" />Скопировано</>
+                    : <><Link size={12} className="mr-1" />Скопировать ссылку</>
+                  }
+                </Button>
               </div>
             )}
           </div>
