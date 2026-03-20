@@ -67,7 +67,7 @@ const AdminPanel = () => {
     try {
       const [catRes, artRes] = await Promise.all([
         fetch(`${API_URL}?action=categories`),
-        fetch(`${API_URL}?action=articles`),
+        fetch(`${API_URL}?action=articles`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       setCategories((await catRes.json()).categories || []);
       setArticles((await artRes.json()).articles || []);
