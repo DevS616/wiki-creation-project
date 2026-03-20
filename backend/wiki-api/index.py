@@ -612,7 +612,13 @@ def handle_hosting_images(method: str, event: dict) -> dict:
 
             s3 = get_regru_s3()
             bucket = os.environ['REGRU_BUCKET_NAME']
-            s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type)
+            endpoint = os.environ['REGRU_S3_ENDPOINT']
+            print(f"S3 upload: endpoint={endpoint}, bucket={bucket}, key={key}, size={len(image_bytes)}")
+            try:
+                s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType=content_type)
+            except Exception as s3_err:
+                print(f"S3 PutObject error: {s3_err}")
+                raise
 
             cdn_url = get_regru_cdn_url(key)
 
