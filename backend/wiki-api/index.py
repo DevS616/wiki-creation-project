@@ -166,6 +166,7 @@ def handle_articles(method: str, event: dict) -> dict:
         elif method == 'POST':
             body = json.loads(event.get('body', '{}'))
             user = validate_user(event)
+            print(f"[create_article] user={user}")
             
             if not user:
                 return cors_response(403, {'error': 'Authentication required'})
@@ -176,6 +177,7 @@ def handle_articles(method: str, event: dict) -> dict:
             category_ids = body.get('category_ids', [])
             preview_image = body.get('preview_image')
             is_hidden = body.get('is_hidden', False)
+            print(f"[create_article] title={title!r}, category_ids={category_ids}, content_len={len(content)}")
             
             if not title or not content:
                 return cors_response(400, {'error': 'Заголовок и контент обязательны'})
@@ -234,7 +236,7 @@ def handle_articles(method: str, event: dict) -> dict:
             if not article:
                 return cors_response(404, {'error': 'Article not found'})
             
-            if article[0] != user['id'] and user['role'] != 'administrator':
+            if article[0] != user['id'] and user['role'] not in ('moderator', 'administrator'):
                 return cors_response(403, {'error': 'Access denied'})
             
             updates = []
@@ -456,6 +458,7 @@ def handle_upload_image(method: str, event: dict) -> dict:
     if method != 'POST':
         return cors_response(405, {'error': 'Method not allowed'})
     user = validate_user(event)
+    print(f"[upload_image] user={user}")
     if not user or user['role'] not in ('editor', 'moderator', 'administrator'):
         return cors_response(403, {'error': 'Access denied'})
 
@@ -463,9 +466,14 @@ def handle_upload_image(method: str, event: dict) -> dict:
     body = json.loads(event.get('body', '{}'))
     image_data = body.get('image', '')
     filename = body.get('filename', 'image.png')
+    print(f"[upload_image] filename={filename}, image_len={len(image_data)}")
     if ',' in image_data:
         image_data = image_data.split(',')[1]
-    image_bytes = base64.b64decode(image_data)
+    try:
+        image_bytes = base64.b64decode(image_data)
+    except Exception as e:
+        print(f"[upload_image] base64 decode error: {e}")
+        return cors_response(400, {'error': f'Ошибка декодирования изображения: {str(e)}'})
 
     MAX_SIZE = 5 * 1024 * 1024
     if len(image_bytes) > MAX_SIZE:
@@ -473,9 +481,16 @@ def handle_upload_image(method: str, event: dict) -> dict:
 
     ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'png'
     key = f"wiki/{datetime.now().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
-    s3 = get_s3()
-    s3.put_object(Bucket='files', Key=key, Body=image_bytes, ContentType=get_content_type(filename))
-    return cors_response(200, {'url': s3_url(key)})
+    print(f"[upload_image] uploading key={key}")
+    try:
+        s3 = get_s3()
+        s3.put_object(Bucket='files', Key=key, Body=image_bytes, ContentType=get_content_type(filename))
+        url = s3_url(key)
+        print(f"[upload_image] success url={url}")
+        return cors_response(200, {'url': url})
+    except Exception as e:
+        print(f"[upload_image] S3 error: {e}")
+        return cors_response(500, {'error': f'Ошибка загрузки в хранилище: {str(e)}'})
 
 
 def handle_hosting_images(method: str, event: dict) -> dict:

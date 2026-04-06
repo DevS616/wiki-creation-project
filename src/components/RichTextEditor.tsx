@@ -211,11 +211,11 @@ ${bodyRows}    </tbody>
           const imgHtml = `<img src="${data.url}" alt="${file.name}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0;" />`;
           onChange(value + imgHtml);
         } else {
-          alert('Ошибка при загрузке изображения');
+          alert(`Ошибка при загрузке изображения: ${data.error || 'неизвестная ошибка'}`);
         }
       } catch (err) {
         console.error('Failed to upload image:', err);
-        alert('Ошибка при загрузке изображения');
+        alert(`Ошибка при загрузке изображения: ${err}`);
       }
     };
     

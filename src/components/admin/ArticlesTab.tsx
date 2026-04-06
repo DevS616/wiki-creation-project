@@ -93,7 +93,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
     setSaving(true);
     try {
       const method = editArticle ? 'PUT' : 'POST';
-      await fetch(`${API_URL}?action=articles`, {
+      const res = await fetch(`${API_URL}?action=articles`, {
         method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -106,10 +106,15 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
           is_hidden: isHidden,
         }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Ошибка: ${data.error || res.statusText}`);
+        return;
+      }
       closeEditor();
       loadData();
-    } catch {
-      alert('Ошибка при сохранении статьи');
+    } catch (e) {
+      alert(`Ошибка при сохранении статьи: ${e}`);
     } finally {
       setSaving(false);
     }
@@ -150,7 +155,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
         });
         const data = await res.json();
         if (data.url) setPreviewImage(data.url);
-        else alert('Ошибка загрузки изображения');
+        else alert(`Ошибка загрузки изображения: ${data.error || 'неизвестная ошибка'}`);
       } catch {
         alert('Ошибка загрузки изображения');
       } finally {
