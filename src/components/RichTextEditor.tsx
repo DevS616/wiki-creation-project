@@ -302,7 +302,8 @@ ${bodyRows}    </tbody>
           value={value} 
           onChange={(e) => onChange(e.target.value)} 
           placeholder={placeholder || "Введите HTML-код статьи..."} 
-          className="bg-slate-900 border-slate-700 text-white font-mono min-h-[300px] text-sm" 
+          className="bg-slate-900 border-slate-700 text-white font-mono min-h-[300px] text-sm select-text"
+          style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
         />
       )}
 

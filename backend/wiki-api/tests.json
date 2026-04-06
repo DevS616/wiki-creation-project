@@ -7,9 +7,48 @@
       "expectedStatus": 200
     },
     {
-      "name": "Get all articles",
+      "name": "Get all articles (public)",
       "method": "GET",
       "path": "/?action=articles",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Create article without auth returns 403",
+      "method": "POST",
+      "path": "/?action=articles",
+      "body": {
+        "title": "Test",
+        "content": "<p>test</p>",
+        "category_ids": [1]
+      },
+      "expectedStatus": 403
+    },
+    {
+      "name": "Upload image without auth returns 403",
+      "method": "POST",
+      "path": "/?action=upload_image",
+      "body": {
+        "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "filename": "test.png"
+      },
+      "expectedStatus": 403
+    },
+    {
+      "name": "Get hosting images without auth returns 403",
+      "method": "GET",
+      "path": "/?action=hosting_images",
+      "expectedStatus": 403
+    },
+    {
+      "name": "Unknown action returns 404",
+      "method": "GET",
+      "path": "/?action=unknown",
+      "expectedStatus": 404
+    },
+    {
+      "name": "OPTIONS preflight returns 200",
+      "method": "OPTIONS",
+      "path": "/",
       "expectedStatus": 200
     }
   ]
