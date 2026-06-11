@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Icon from '@/components/ui/icon';
+import { compressImage } from '@/lib/compressImage';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -293,29 +294,19 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
   const [uploadingCaption, setUploadingCaption] = useState(false);
 
   const handleUpload = async (file: File) => {
-    // Фиксируем id и callback до любых ре-рендеров
     const blockId = block.id;
     const onChangeFn = onChange;
-
     onChangeFn(blockId, { uploading: true });
 
     try {
-      // Читаем файл как base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // Сжимаем картинку через Canvas до макс. 1600px и качества 85%
+      const compressed = await compressImage(file, 1600, 0.85);
 
       const token = localStorage.getItem('admin_token');
       const res = await fetch(`${API_URL}?action=upload_image`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ image: base64, filename: file.name }),
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ image: compressed, filename: file.name }),
       });
 
       const data = await res.json();

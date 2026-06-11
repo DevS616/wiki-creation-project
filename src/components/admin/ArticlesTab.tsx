@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, Pencil, Trash2, Link, Check, ArrowLeft, Upload, X, Save } from 'lucide-react';
 import Icon from '@/components/ui/icon';
 import GuideEditor from '@/components/GuideEditor';
+import { compressImage } from '@/lib/compressImage';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -144,25 +145,22 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
     const file = e.target.files?.[0];
     if (!file) return;
     setPreviewImageUploading(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const res = await fetch(`${API_URL}?action=upload_image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
-          body: JSON.stringify({ image: reader.result, filename: file.name }),
-        });
-        const data = await res.json();
-        if (data.url) setPreviewImage(data.url);
-        else alert(`Ошибка загрузки изображения: ${data.error || 'неизвестная ошибка'}`);
-      } catch {
-        alert('Ошибка загрузки изображения');
-      } finally {
-        setPreviewImageUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    try {
+      const compressed = await compressImage(file, 1600, 0.85);
+      const res = await fetch(`${API_URL}?action=upload_image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
+        body: JSON.stringify({ image: compressed, filename: file.name }),
+      });
+      const data = await res.json();
+      if (data.url) setPreviewImage(data.url);
+      else alert(`Ошибка загрузки: ${data.error || `HTTP ${res.status}`}`);
+    } catch (err) {
+      alert(`Ошибка загрузки: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setPreviewImageUploading(false);
+    }
   };
 
   const toggleCategory = (id: string) => {
