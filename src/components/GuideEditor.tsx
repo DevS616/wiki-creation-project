@@ -827,52 +827,43 @@ export function renderBlocksToHtml(blocks: Block[]): string {
 </style>
 <div class="gb">`);
 
+  // Универсальная функция форматирования markdown → HTML
+  const fmt = (s: string) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code style="background:#1e293b;border:1px solid #334155;padding:1px 6px;border-radius:4px;font-size:0.85em;color:#e2e8f0;font-family:monospace;">$1</code>')
+    .replace(/\n/g, '<br/>');
+
+  // Безопасное экранирование без markdown (для заголовков)
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
   for (const b of blocks) {
     if (b.type === 'paragraph' && b.text) {
-      // Поддержка базового форматирования текста
-      const html = b.text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/`(.+?)`/g, '<code style="background:#1e293b;padding:1px 6px;border-radius:4px;font-size:0.85em;color:#e2e8f0;">$1</code>')
-        .replace(/\n/g, '<br/>');
-      parts.push(`<p class="gb-p">${html}</p>`);
+      parts.push(`<p class="gb-p">${fmt(b.text)}</p>`);
     }
     if (b.type === 'heading2' && b.text) {
-      const t = b.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      parts.push(`<div class="gb-h2"><div class="gb-h2-bar"></div><span>${t}</span></div>`);
+      parts.push(`<div class="gb-h2"><div class="gb-h2-bar"></div><span>${esc(b.text)}</span></div>`);
     }
     if (b.type === 'heading3' && b.text) {
-      const t = b.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      parts.push(`<div class="gb-h3"><div class="gb-h3-bar"></div><span>${t}</span></div>`);
+      parts.push(`<div class="gb-h3"><div class="gb-h3-bar"></div><span>${esc(b.text)}</span></div>`);
     }
     if (b.type === 'step') {
       const num = b.stepNum ?? 1;
-      const text = (b.text || '')
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/`(.+?)`/g, '<code style="background:#1e293b;padding:1px 6px;border-radius:4px;font-size:0.85em;color:#e2e8f0;">$1</code>')
-        .replace(/\n/g, '<br/>');
-      parts.push(`<div class="gb-step"><div class="gb-step-num" style="background:#f97316">${num}</div><div class="gb-step-text">${text}</div></div>`);
+      parts.push(`<div class="gb-step"><div class="gb-step-num" style="background:#f97316">${num}</div><div class="gb-step-text">${fmt(b.text || '')}</div></div>`);
     }
     if (b.type === 'warning') {
-      const title = (b.icon || 'Важно!').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const text = (b.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
-      parts.push(`<div class="gb-warn"><div class="gb-warn-title">⚠️ ${title}</div><p class="gb-warn-text">${text}</p></div>`);
+      parts.push(`<div class="gb-warn"><div class="gb-warn-title">⚠️ ${esc(b.icon || 'Важно!')}</div><p class="gb-warn-text">${fmt(b.text || '')}</p></div>`);
     }
     if (b.type === 'tip') {
-      const title = (b.icon || 'Подсказка').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const text = (b.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>');
-      parts.push(`<div class="gb-tip"><div class="gb-tip-title">💡 ${title}</div><p class="gb-tip-text">${text}</p></div>`);
+      parts.push(`<div class="gb-tip"><div class="gb-tip-title">💡 ${esc(b.icon || 'Подсказка')}</div><p class="gb-tip-text">${fmt(b.text || '')}</p></div>`);
     }
     if (b.type === 'image' && b.src) {
       const alt = (b.caption || '').replace(/"/g, '&quot;');
-      const cap = (b.caption || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       parts.push(`<img class="gb-img" src="${b.src}" alt="${alt}" />`);
-      if (cap) parts.push(`<p class="gb-img-cap">${cap}</p>`);
+      if (b.caption) parts.push(`<p class="gb-img-cap">${esc(b.caption)}</p>`);
     }
     if (b.type === 'divider') {
       parts.push(`<hr class="gb-hr" />`);
@@ -880,28 +871,17 @@ export function renderBlocksToHtml(blocks: Block[]): string {
     if (b.type === 'list' && b.items?.length) {
       const tag = b.ordered ? 'ol' : 'ul';
       const cls = b.ordered ? 'gb-ol' : 'gb-ul';
-      const items = b.items.filter(i => i.trim()).map(i => {
-        const t = i.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*(.+?)\*/g, '<em>$1</em>');
-        return `<li>${t}</li>`;
-      }).join('');
+      const items = b.items.filter(i => i.trim()).map(i => `<li>${fmt(i)}</li>`).join('');
       parts.push(`<${tag} class="${cls}">${items}</${tag}>`);
     }
     if (b.type === 'button_link' && b.label) {
-      const label = b.label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const href = b.href || '#';
-      parts.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" class="gb-btn" style="color:#ffffff !important;text-decoration:none;">${label}</a>`);
+      parts.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" class="gb-btn" style="color:#ffffff !important;text-decoration:none;">${esc(b.label)}</a>`);
     }
     if (b.type === 'sub_steps' && b.items?.length) {
-      const rendered = b.items.filter(i => i.trim()).map(i => {
-        const t = i
-          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*(.+?)\*/g, '<em>$1</em>')
-          .replace(/`(.+?)`/g, '<code style="display:inline-block;background:#1e293b;border:1px solid #475569;color:#f8fafc;font-family:monospace;font-size:0.82em;padding:1px 7px;border-radius:4px;margin:0 2px;">$1</code>');
-        return `<div class="gb-sub"><span class="gb-sub-arrow">—</span><span>${t}</span></div>`;
-      }).join('');
+      const rendered = b.items.filter(i => i.trim())
+        .map(i => `<div class="gb-sub"><span class="gb-sub-arrow">—</span><span>${fmt(i)}</span></div>`)
+        .join('');
       parts.push(`<div class="gb-sub-wrap">${rendered}</div>`);
     }
   }
