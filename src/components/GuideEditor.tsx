@@ -22,7 +22,8 @@ type BlockType =
   | 'image'
   | 'divider'
   | 'list'
-  | 'button_link';
+  | 'button_link'
+  | 'sub_steps';
 
 interface Block {
   id: string;
@@ -87,7 +88,7 @@ interface BlockEditorProps {
   onAddAfter: (id: string, type: BlockType) => void;
 }
 
-const STEP_COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981'];
+const STEP_COLOR = '#f97316';
 
 function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAfter }: BlockEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -197,7 +198,6 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
   // ── Шаг ──
   if (block.type === 'step') {
     const num = block.stepNum ?? 1;
-    const color = STEP_COLORS[(num - 1) % STEP_COLORS.length];
     return (
       <div className="relative group">
         {controls}
@@ -205,7 +205,7 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
           <div className="flex flex-col items-center gap-1 flex-shrink-0">
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center font-extrabold text-white text-sm select-none"
-              style={{ background: color }}
+              style={{ background: STEP_COLOR }}
             >
               {num}
             </div>
@@ -455,24 +455,81 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
             value={block.label || ''}
             onChange={e => onChange(block.id, { label: e.target.value })}
             placeholder="Текст кнопки..."
-            className="bg-slate-800 border-slate-600 text-white h-8 text-sm"
+            className="bg-slate-800 border-slate-600 h-8 text-sm"
+            style={{ color: '#fff' }}
           />
           <Input
             value={block.href || ''}
             onChange={e => onChange(block.id, { href: e.target.value })}
-            placeholder="URL ссылки..."
-            className="bg-slate-800 border-slate-600 text-slate-300 h-8 text-sm"
+            placeholder="URL ссылки (необязательно)..."
+            className="bg-slate-800 border-slate-600 h-8 text-sm"
+            style={{ color: '#94a3b8' }}
           />
-          <div className="pt-1">
+          <div className="pt-2">
+            <p className="text-slate-600 text-xs mb-2">Предпросмотр:</p>
             <a
               href={block.href || '#'}
               target="_blank"
               rel="noreferrer"
-              className="inline-block px-5 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors"
+              style={{ background: '#f97316', color: '#ffffff', display: 'inline-block', padding: '10px 22px', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', textDecoration: 'none' }}
             >
               {block.label || 'Текст кнопки'}
             </a>
           </div>
+        </div>
+        <AddBlockButton blockId={block.id} onAdd={onAddAfter} />
+      </div>
+    );
+  }
+
+  // ── Вложенные пункты (sub_steps) ──
+  if (block.type === 'sub_steps') {
+    const items = block.items || [''];
+    return (
+      <div className="relative group">
+        {controls}
+        <div className="bg-slate-800/20 border border-slate-700/30 rounded-xl p-4 space-y-2 ml-4 border-l-2 border-l-orange-600/30">
+          <p className="text-slate-500 text-xs mb-2 flex items-center gap-1"><Icon name="CornerDownRight" size={12} /> Вложенные пункты</p>
+          {items.map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-orange-500/70 text-sm flex-shrink-0">—</span>
+              <input
+                value={item}
+                onChange={e => {
+                  const newItems = [...items];
+                  newItems[i] = e.target.value;
+                  onChange(block.id, { items: newItems });
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const newItems = [...items];
+                    newItems.splice(i + 1, 0, '');
+                    onChange(block.id, { items: newItems });
+                  }
+                  if (e.key === 'Backspace' && item === '' && items.length > 1) {
+                    e.preventDefault();
+                    const newItems = items.filter((_, idx) => idx !== i);
+                    onChange(block.id, { items: newItems });
+                  }
+                }}
+                placeholder={`Пункт ${i + 1}... (поддерживает **жирный**, \`клавиша\`)`}
+                className="flex-1 bg-transparent text-slate-300 text-sm outline-none placeholder-slate-600"
+                style={{ userSelect: 'text' }}
+              />
+              {items.length > 1 && (
+                <button onClick={() => onChange(block.id, { items: items.filter((_, idx) => idx !== i) })} className="text-slate-600 hover:text-red-400">
+                  <Icon name="X" size={14} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={() => onChange(block.id, { items: [...items, ''] })}
+            className="text-orange-500/70 hover:text-orange-400 text-xs flex items-center gap-1 mt-1"
+          >
+            <Icon name="Plus" size={12} /> Добавить пункт
+          </button>
         </div>
         <AddBlockButton blockId={block.id} onAdd={onAddAfter} />
       </div>
@@ -491,6 +548,7 @@ function AddBlockButton({ blockId, onAdd }: { blockId: string; onAdd: (id: strin
     { type: 'heading2', label: 'Раздел', icon: 'Heading2', desc: 'Крупный заголовок' },
     { type: 'heading3', label: 'Подзаголовок', icon: 'Heading3', desc: 'Заголовок поменьше' },
     { type: 'step', label: 'Шаг', icon: 'ListOrdered', desc: 'Пронумерованный шаг' },
+    { type: 'sub_steps', label: 'Вложенные', icon: 'CornerDownRight', desc: 'Пункты со стрелкой' },
     { type: 'warning', label: 'Предупреждение', icon: 'AlertTriangle', desc: 'Важная информация' },
     { type: 'tip', label: 'Подсказка', icon: 'Lightbulb', desc: 'Полезный совет' },
     { type: 'image', label: 'Изображение', icon: 'ImagePlus', desc: 'Фото или скриншот' },
@@ -562,13 +620,14 @@ export function renderBlocksToHtml(blocks: Block[]): string {
 .gb-hr{border:none;border-top:1px solid #334155;margin:24px 0;}
 .gb-ul,.gb-ol{margin:10px 0;padding-left:24px;color:#cbd5e1;font-size:0.93rem;}
 .gb-ul li,.gb-ol li{margin-bottom:6px;}
-.gb-btn{display:inline-block;padding:10px 22px;background:#f97316;color:#fff;border-radius:8px;font-weight:600;font-size:0.9rem;text-decoration:none;margin:8px 0;}
-.gb-btn:hover{background:#ea6c0a;}
+.gb-btn{display:inline-block;padding:10px 22px;background:#f97316;color:#ffffff !important;border-radius:8px;font-weight:600;font-size:0.9rem;text-decoration:none !important;margin:8px 0;}
+.gb-btn:hover{background:#ea6c0a;color:#ffffff !important;}
+.gb-sub-wrap{margin:6px 0 6px 16px;display:flex;flex-direction:column;gap:6px;}
+.gb-sub{display:flex;align-items:flex-start;gap:10px;color:#94a3b8;font-size:0.9rem;}
+.gb-sub-arrow{color:#f97316;font-weight:700;flex-shrink:0;margin-top:1px;}
 @media(max-width:600px){.gb-step{padding:10px 12px;}.gb-h2 span{font-size:1.1rem;}.gb-img{max-width:100%;}}
 </style>
 <div class="gb">`);
-
-  const STEP_COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981'];
 
   for (const b of blocks) {
     if (b.type === 'paragraph' && b.text) {
@@ -593,14 +652,13 @@ export function renderBlocksToHtml(blocks: Block[]): string {
     }
     if (b.type === 'step') {
       const num = b.stepNum ?? 1;
-      const color = STEP_COLORS[(num - 1) % STEP_COLORS.length];
       const text = (b.text || '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/`(.+?)`/g, '<code style="background:#1e293b;padding:1px 6px;border-radius:4px;font-size:0.85em;color:#e2e8f0;">$1</code>')
         .replace(/\n/g, '<br/>');
-      parts.push(`<div class="gb-step"><div class="gb-step-num" style="background:${color}">${num}</div><div class="gb-step-text">${text}</div></div>`);
+      parts.push(`<div class="gb-step"><div class="gb-step-num" style="background:#f97316">${num}</div><div class="gb-step-text">${text}</div></div>`);
     }
     if (b.type === 'warning') {
       const title = (b.icon || 'Важно!').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -635,7 +693,18 @@ export function renderBlocksToHtml(blocks: Block[]): string {
     if (b.type === 'button_link' && b.label) {
       const label = b.label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const href = b.href || '#';
-      parts.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" class="gb-btn">${label}</a>`);
+      parts.push(`<a href="${href}" target="_blank" rel="noopener noreferrer" class="gb-btn" style="color:#ffffff !important;text-decoration:none;">${label}</a>`);
+    }
+    if (b.type === 'sub_steps' && b.items?.length) {
+      const rendered = b.items.filter(i => i.trim()).map(i => {
+        const t = i
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/`(.+?)`/g, '<code style="display:inline-block;background:#1e293b;border:1px solid #475569;color:#f8fafc;font-family:monospace;font-size:0.82em;padding:1px 7px;border-radius:4px;margin:0 2px;">$1</code>');
+        return `<div class="gb-sub"><span class="gb-sub-arrow">—</span><span>${t}</span></div>`;
+      }).join('');
+      parts.push(`<div class="gb-sub-wrap">${rendered}</div>`);
     }
   }
 
@@ -691,7 +760,7 @@ export default function GuideEditor({ value, onChange }: GuideEditorProps) {
   const addAfter = useCallback((afterId: string, type: BlockType) => {
     setBlocks(prev => {
       const idx = prev.findIndex(b => b.id === afterId);
-      const newBlock: Block = { id: uid(), type, stepNum: type === 'step' ? 1 : undefined, items: type === 'list' ? [''] : undefined };
+      const newBlock: Block = { id: uid(), type, stepNum: type === 'step' ? 1 : undefined, items: (type === 'list' || type === 'sub_steps') ? [''] : undefined };
       const next = [...prev];
       next.splice(idx + 1, 0, newBlock);
       syncToParent(next);
@@ -700,7 +769,7 @@ export default function GuideEditor({ value, onChange }: GuideEditorProps) {
   }, [syncToParent]);
 
   const addFirst = (type: BlockType) => {
-    const newBlock: Block = { id: uid(), type, stepNum: type === 'step' ? 1 : undefined, items: type === 'list' ? [''] : undefined };
+    const newBlock: Block = { id: uid(), type, stepNum: type === 'step' ? 1 : undefined, items: (type === 'list' || type === 'sub_steps') ? [''] : undefined };
     setBlocks(prev => {
       const next = [...prev, newBlock];
       syncToParent(next);
@@ -719,6 +788,7 @@ export default function GuideEditor({ value, onChange }: GuideEditorProps) {
           { type: 'paragraph' as BlockType, label: 'Текст', icon: 'AlignLeft' },
           { type: 'heading2' as BlockType, label: 'Раздел', icon: 'Heading2' },
           { type: 'step' as BlockType, label: 'Шаг', icon: 'ListOrdered' },
+          { type: 'sub_steps' as BlockType, label: 'Вложенные', icon: 'CornerDownRight' },
           { type: 'warning' as BlockType, label: 'Важно', icon: 'AlertTriangle' },
           { type: 'tip' as BlockType, label: 'Совет', icon: 'Lightbulb' },
           { type: 'image' as BlockType, label: 'Картинку', icon: 'ImagePlus' },
