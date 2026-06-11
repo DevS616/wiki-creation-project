@@ -498,20 +498,53 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
       <div className="relative group">
         {controls}
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 space-y-3">
+          {/* Скрытый input — всегда в DOM, чтобы fileRef всегда работал */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+              e.target.value = '';
+            }}
+          />
+
           {block.src ? (
-            <div className="relative">
-              <img
-                src={block.src}
-                alt={block.caption || ''}
-                className="w-full max-w-2xl rounded-lg border border-slate-700 object-cover"
-                style={{ maxHeight: 400 }}
-              />
-              <button
-                onClick={() => onChange(block.id, { src: '' })}
-                className="absolute top-2 right-2 bg-red-900/80 hover:bg-red-700 text-white rounded-full p-1"
-              >
-                <Icon name="X" size={14} />
-              </button>
+            <div className="space-y-2">
+              <div className="relative">
+                <img
+                  src={block.src}
+                  alt={block.caption || ''}
+                  className="w-full max-w-2xl rounded-lg border border-slate-700 object-cover"
+                  style={{ maxHeight: 400 }}
+                />
+                {/* Кнопки поверх картинки */}
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-orange-600 text-white text-xs font-medium transition-colors"
+                    title="Заменить картинку"
+                  >
+                    <Icon name="Upload" size={12} />
+                    Заменить
+                  </button>
+                  <button
+                    onClick={() => onChange(block.id, { src: '' })}
+                    className="p-1 rounded-lg bg-red-900/80 hover:bg-red-700 text-white transition-colors"
+                    title="Удалить картинку"
+                  >
+                    <Icon name="X" size={14} />
+                  </button>
+                </div>
+              </div>
+              {block.uploading && (
+                <div className="flex items-center gap-2 text-slate-400 text-sm">
+                  <Icon name="Loader2" size={16} className="animate-spin" />
+                  Загружаем новое изображение...
+                </div>
+              )}
             </div>
           ) : (
             <div>
@@ -530,17 +563,25 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
                   <span className="text-xs text-slate-600">JPG, PNG, GIF, WebP · до 5 МБ</span>
                 </div>
               )}
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
               <div className="flex gap-2 mt-2">
                 <Input
                   placeholder="или вставьте URL изображения..."
                   className="bg-slate-800 border-slate-600 text-white text-xs h-8 flex-1"
-                  onKeyDown={e => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value.trim(); if (v) onChange(block.id, { src: v }); } }}
-                  onBlur={e => { const v = e.target.value.trim(); if (v) onChange(block.id, { src: v }); }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const v = (e.target as HTMLInputElement).value.trim();
+                      if (v) { onChange(block.id, { src: v }); (e.target as HTMLInputElement).value = ''; }
+                    }
+                  }}
+                  onBlur={e => {
+                    const v = e.target.value.trim();
+                    if (v) { onChange(block.id, { src: v }); e.target.value = ''; }
+                  }}
                 />
               </div>
             </div>
           )}
+
           {block.src && (
             <Input
               value={block.caption || ''}
