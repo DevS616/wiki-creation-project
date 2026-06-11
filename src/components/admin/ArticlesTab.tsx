@@ -2,11 +2,10 @@ import { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Plus, Pencil, Trash2, Link, Check, ArrowLeft, Upload, X, Save } from 'lucide-react';
 import Icon from '@/components/ui/icon';
-import RichTextEditor from '@/components/RichTextEditor';
+import GuideEditor from '@/components/GuideEditor';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -233,7 +232,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
               />
             </div>
             <div className="border-t border-slate-700/50 pt-4">
-              <RichTextEditor value={articleContent} onChange={setArticleContent} />
+              <GuideEditor value={articleContent} onChange={setArticleContent} />
             </div>
           </div>
 

@@ -6,6 +6,18 @@ import { Badge } from '@/components/ui/badge';
 import { Flame, ExternalLink, Layers, Info, Search, ChevronRight, SearchX, ArrowLeft, Map, Shuffle } from 'lucide-react';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
+import { renderBlocksToHtml } from '@/components/GuideEditor';
+
+function renderContent(content: string): string {
+  if (!content) return '';
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) return renderBlocksToHtml(parsed);
+  } catch {
+    // не JSON — рендерим как HTML напрямую
+  }
+  return content;
+}
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
 
@@ -363,7 +375,7 @@ const Index = () => {
                 <div 
                   className="prose prose-invert max-w-none text-slate-300"
                   style={{ lineHeight: '1.8' }}
-                  dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+                  dangerouslySetInnerHTML={{ __html: renderContent(selectedArticle.content) }}
                 />
 
                 <div className="mt-8 pt-6 border-t border-slate-700 flex gap-3 flex-wrap">
