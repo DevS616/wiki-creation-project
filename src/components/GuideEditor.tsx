@@ -293,28 +293,42 @@ function BlockEditor({ block, index, total, onChange, onDelete, onMove, onAddAft
   const [uploadingCaption, setUploadingCaption] = useState(false);
 
   const handleUpload = async (file: File) => {
-    onChange(block.id, { uploading: true });
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const res = await fetch(`${API_URL}?action=upload_image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('admin_token')}` },
-          body: JSON.stringify({ image: e.target?.result, filename: file.name }),
-        });
-        const data = await res.json();
-        if (data.url) {
-          onChange(block.id, { src: data.url, uploading: false });
-        } else {
-          alert(`Ошибка загрузки: ${data.error || 'неизвестно'}`);
-          onChange(block.id, { uploading: false });
-        }
-      } catch (err) {
-        alert(`Ошибка: ${err}`);
-        onChange(block.id, { uploading: false });
+    // Фиксируем id и callback до любых ре-рендеров
+    const blockId = block.id;
+    const onChangeFn = onChange;
+
+    onChangeFn(blockId, { uploading: true });
+
+    try {
+      // Читаем файл как base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch(`${API_URL}?action=upload_image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ image: base64, filename: file.name }),
+      });
+
+      const data = await res.json();
+      if (data.url) {
+        onChangeFn(blockId, { src: data.url, uploading: false });
+      } else {
+        alert(`Ошибка загрузки: ${data.error || `HTTP ${res.status}`}`);
+        onChangeFn(blockId, { uploading: false });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      alert(`Ошибка загрузки: ${err instanceof Error ? err.message : String(err)}`);
+      onChangeFn(blockId, { uploading: false });
+    }
   };
 
   const controls = (
