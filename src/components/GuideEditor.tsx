@@ -49,25 +49,223 @@ interface Block {
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 // ─── Парсер HTML → блоки ────────────────────────────────────────
+
+// Декодирует HTML-entities обратно в текст
+function decodeHtml(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+    .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`');
+}
+
+// Конвертирует GB-HTML (созданный renderBlocksToHtml) обратно в блоки
+function gbHtmlToBlocks(html: string): Block[] {
+  const blocks: Block[] = [];
+
+  // Убираем <style>...</style> и обёртку <div class="gb">
+  const body = html
+    .replace(/<style>[\s\S]*?<\/style>/gi, '')
+    .replace(/<div\s+class="gb">/gi, '')
+    .replace(/<\/div>\s*$/gi, '')
+    .trim();
+
+  // Разбиваем на логические куски по тегам верхнего уровня
+  const tagRe = /<(div|p|img|hr|ul|ol|a)\b([^>]*)>([\s\S]*?)<\/\1>|<(img|hr)\b([^>]*)\/?>|<(a)\b([^>]*)>([\s\S]*?)<\/a>/gi;
+
+  const lastIndex = 0;
+  const matches: Array<{ full: string; index: number }> = [];
+
+  // Собираем все совпадения верхнего уровня (не вложенные)
+  // Используем простой посегментный разбор
+  const segments = splitTopLevel(body);
+
+  for (const seg of segments) {
+    const s = seg.trim();
+    if (!s) continue;
+
+    // H2 раздел
+    if (s.startsWith('<div class="gb-h2"')) {
+      const m = s.match(/<span>([\s\S]*?)<\/span>/);
+      blocks.push({ id: uid(), type: 'heading2', text: decodeHtml(m?.[1] || '') });
+      continue;
+    }
+    // H3 подзаголовок
+    if (s.startsWith('<div class="gb-h3"')) {
+      const m = s.match(/<span>([\s\S]*?)<\/span>/);
+      blocks.push({ id: uid(), type: 'heading3', text: decodeHtml(m?.[1] || '') });
+      continue;
+    }
+    // Шаг
+    if (s.startsWith('<div class="gb-step"')) {
+      const numM = s.match(/class="gb-step-num"[^>]*>(\d+)</);
+      const textM = s.match(/class="gb-step-text">([\s\S]*?)<\/div>/);
+      blocks.push({
+        id: uid(), type: 'step',
+        stepNum: numM ? parseInt(numM[1]) : 1,
+        text: textM ? decodeHtml(textM[1]) : '',
+      });
+      continue;
+    }
+    // Предупреждение
+    if (s.startsWith('<div class="gb-warn"')) {
+      const titleM = s.match(/class="gb-warn-title">⚠️\s*([\s\S]*?)<\/div>/);
+      const textM = s.match(/class="gb-warn-text">([\s\S]*?)<\/p>/);
+      blocks.push({
+        id: uid(), type: 'warning',
+        icon: titleM ? decodeHtml(titleM[1]).trim() : 'Важно!',
+        text: textM ? decodeHtml(textM[1]) : '',
+      });
+      continue;
+    }
+    // Подсказка
+    if (s.startsWith('<div class="gb-tip"')) {
+      const titleM = s.match(/class="gb-tip-title">💡\s*([\s\S]*?)<\/div>/);
+      const textM = s.match(/class="gb-tip-text">([\s\S]*?)<\/p>/);
+      blocks.push({
+        id: uid(), type: 'tip',
+        icon: titleM ? decodeHtml(titleM[1]).trim() : 'Подсказка',
+        text: textM ? decodeHtml(textM[1]) : '',
+      });
+      continue;
+    }
+    // Вложенные пункты
+    if (s.startsWith('<div class="gb-sub-wrap"')) {
+      const itemMs = [...s.matchAll(/class="gb-sub"[^>]*>[\s\S]*?<span>([\s\S]*?)<\/span><\/div>/g)];
+      const items = itemMs.map(m => decodeHtml(m[1]));
+      blocks.push({ id: uid(), type: 'sub_steps', items: items.length ? items : [''] });
+      continue;
+    }
+    // Картинка
+    if (s.startsWith('<img')) {
+      const srcM = s.match(/src="([^"]+)"/);
+      blocks.push({ id: uid(), type: 'image', src: srcM?.[1] || '' });
+      continue;
+    }
+    // Подпись картинки
+    if (s.startsWith('<p class="gb-img-cap"')) {
+      // Добавляем caption к предыдущему image-блоку
+      const last = blocks[blocks.length - 1];
+      if (last?.type === 'image') {
+        const m = s.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+        last.caption = m ? decodeHtml(m[1]) : '';
+      }
+      continue;
+    }
+    // Разделитель
+    if (s.startsWith('<hr')) {
+      blocks.push({ id: uid(), type: 'divider' });
+      continue;
+    }
+    // Список ul/ol
+    if (s.startsWith('<ul') || s.startsWith('<ol')) {
+      const ordered = s.startsWith('<ol');
+      const liMs = [...s.matchAll(/<li>([\s\S]*?)<\/li>/gi)];
+      const items = liMs.map(m => decodeHtml(m[1]));
+      blocks.push({ id: uid(), type: 'list', ordered, items: items.length ? items : [''] });
+      continue;
+    }
+    // Кнопка
+    if (s.startsWith('<a') && s.includes('gb-btn')) {
+      const hrefM = s.match(/href="([^"]+)"/);
+      const labelM = s.match(/>([\s\S]*?)<\/a>/);
+      blocks.push({ id: uid(), type: 'button_link', href: hrefM?.[1] || '', label: labelM ? decodeHtml(labelM[1]) : '' });
+      continue;
+    }
+    // Параграф
+    if (s.startsWith('<p')) {
+      const m = s.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+      const text = m ? decodeHtml(m[1]).trim() : '';
+      if (text) blocks.push({ id: uid(), type: 'paragraph', text });
+      continue;
+    }
+    // Прочие div — попробуем вытащить текст
+    const textOnly = s.replace(/<[^>]+>/g, '').trim();
+    if (textOnly) blocks.push({ id: uid(), type: 'paragraph', text: textOnly });
+  }
+
+  return blocks.length ? blocks : [{ id: uid(), type: 'paragraph', text: '' }];
+}
+
+// Разбивает HTML-строку на сегменты верхнего уровня (не вложенные теги)
+function splitTopLevel(html: string): string[] {
+  const result: string[] = [];
+  let depth = 0;
+  let current = '';
+  let i = 0;
+
+  while (i < html.length) {
+    if (html[i] === '<') {
+      // Самозакрывающийся или закрывающий?
+      const tagEnd = html.indexOf('>', i);
+      if (tagEnd === -1) { current += html[i++]; continue; }
+      const tag = html.slice(i, tagEnd + 1);
+      const isClose = tag.startsWith('</');
+      const isSelfClose = tag.endsWith('/>') || /^<(img|hr|br|input|meta|link)\b/i.test(tag);
+
+      if (isClose) {
+        depth--;
+        current += tag;
+        i = tagEnd + 1;
+        if (depth <= 0) {
+          result.push(current.trim());
+          current = '';
+          depth = 0;
+        }
+      } else if (isSelfClose) {
+        if (depth === 0) {
+          if (current.trim()) { result.push(current.trim()); current = ''; }
+          result.push(tag);
+        } else {
+          current += tag;
+        }
+        i = tagEnd + 1;
+      } else {
+        if (depth === 0 && current.trim()) {
+          result.push(current.trim());
+          current = '';
+        }
+        depth++;
+        current += tag;
+        i = tagEnd + 1;
+      }
+    } else {
+      current += html[i++];
+    }
+  }
+  if (current.trim()) result.push(current.trim());
+  return result;
+}
+
 function htmlToBlocks(html: string): Block[] {
   if (!html || html.trim() === '') return [{ id: uid(), type: 'paragraph', text: '' }];
 
-  // Если это старый HTML-формат с <style> — возвращаем один блок-параграф с предупреждением
-  // и сам HTML, чтобы не потерять данные
-  if (html.includes('<style>') || html.includes('<!DOCTYPE')) {
-    return [{ id: uid(), type: 'paragraph', text: html }];
-  }
-
-  // Иначе пробуем распарсить наш JSON-формат
+  // Сначала пробуем JSON (наш новый формат)
   try {
     const parsed = JSON.parse(html);
     if (Array.isArray(parsed)) return parsed;
   } catch {
-    // не JSON — парсим как простой текст
+    // не JSON
+  }
+
+  // GB-HTML формат (создан renderBlocksToHtml)
+  if (html.includes('class="gb"') || html.includes('.gb{') || html.includes('.gb-step')) {
+    const blocks = gbHtmlToBlocks(html);
+    if (blocks.length > 0) return blocks;
+  }
+
+  // Старый ручной HTML (<!DOCTYPE или сложные custom стили) — оставляем как параграф
+  if (html.includes('<!DOCTYPE') || html.includes('class="event-container"') || html.includes('class="guide-wrap"')) {
     return [{ id: uid(), type: 'paragraph', text: html }];
   }
 
-  return [{ id: uid(), type: 'paragraph', text: '' }];
+  // Любой другой HTML — пробуем распарсить
+  return gbHtmlToBlocks(html);
 }
 
 // ─── Рендер блоков → HTML для сохранения ───────────────────────
@@ -721,7 +919,13 @@ export default function GuideEditor({ value, onChange }: GuideEditorProps) {
     return parsed;
   });
   const [showPreview, setShowPreview] = useState(false);
-  const isLegacy = value && (value.includes('<style>') || value.includes('<!DOCTYPE'));
+  // Legacy только если это старый ручной HTML (не наш GB-формат)
+  const isLegacy = value && (
+    value.includes('<!DOCTYPE') ||
+    value.includes('class="event-container"') ||
+    value.includes('class="guide-wrap"') ||
+    value.includes('class="guide-header"')
+  );
 
   const syncToParent = useCallback((newBlocks: Block[]) => {
     onChange(renderBlocksToHtml(newBlocks));
