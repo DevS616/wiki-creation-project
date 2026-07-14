@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,18 @@ import GuideEditor from '@/components/GuideEditor';
 import { compressImage } from '@/lib/compressImage';
 
 const API_URL = 'https://functions.poehali.dev/4db8632d-53f9-40bd-ba69-61a3669656a4';
+const DRAFT_KEY = 'article_draft';
+
+interface Draft {
+  articleId: number | null;
+  title: string;
+  description: string;
+  content: string;
+  previewImage: string;
+  categoryIds: string[];
+  isHidden: boolean;
+  savedAt: number;
+}
 
 interface Category {
   id: number;
@@ -62,7 +74,19 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
   };
 
   const openEditor = (article?: Article) => {
-    if (article) {
+    // Проверяем есть ли сохранённый черновик именно для этой статьи (или новой)
+    const draft = loadDraft();
+    const draftMatches = draft && draft.articleId === (article?.id ?? null);
+
+    if (draftMatches && draft && confirm('Найден несохранённый черновик этой статьи. Восстановить его?')) {
+      setEditArticle(article || null);
+      setTitle(draft.title);
+      setDescription(draft.description);
+      setArticleContent(draft.content);
+      setPreviewImage(draft.previewImage);
+      setSelectedCategoryIds(draft.categoryIds);
+      setIsHidden(draft.isHidden);
+    } else if (article) {
       setEditArticle(article);
       setTitle(article.title);
       setDescription(article.description);
@@ -70,6 +94,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setPreviewImage(article.preview_image || '');
       setSelectedCategoryIds(article.category_ids?.map(id => id.toString()) || []);
       setIsHidden(article.is_hidden || false);
+      clearDraft();
     } else {
       setEditArticle(null);
       setTitle('');
@@ -78,6 +103,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setPreviewImage('');
       setSelectedCategoryIds([]);
       setIsHidden(false);
+      clearDraft();
     }
     setIsEditorOpen(true);
   };
@@ -85,7 +111,49 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
   const closeEditor = () => {
     setIsEditorOpen(false);
     setEditArticle(null);
+    clearDraft();
   };
+
+  const loadDraft = (): Draft | null => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+  };
+
+  // Автосохранение черновика при любых изменениях в открытом редакторе
+  useEffect(() => {
+    if (!isEditorOpen) return;
+    if (!title.trim() && !description.trim() && !articleContent.trim()) return;
+    const draft: Draft = {
+      articleId: editArticle?.id ?? null,
+      title,
+      description,
+      content: articleContent,
+      previewImage,
+      categoryIds: selectedCategoryIds,
+      isHidden,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [isEditorOpen, editArticle, title, description, articleContent, previewImage, selectedCategoryIds, isHidden]);
+
+  // Предупреждаем перед закрытием/перезагрузкой вкладки, если есть несохранённые правки
+  useEffect(() => {
+    if (!isEditorOpen) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isEditorOpen]);
 
   const handleSaveArticle = async () => {
     const token = localStorage.getItem('admin_token');
@@ -111,6 +179,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
         alert(`Ошибка: ${data.error || res.statusText}`);
         return;
       }
+      clearDraft();
       closeEditor();
       loadData();
     } catch (e) {
@@ -183,6 +252,10 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
             <div className="w-px h-5 bg-slate-700" />
             <span className="text-slate-400 text-sm">{editArticle ? 'Редактирование' : 'Новая статья'}</span>
             {title && <span className="text-white text-sm font-medium truncate max-w-xs">{title}</span>}
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              <Icon name="Cloud" size={13} />
+              Черновик сохраняется автоматически
+            </span>
           </div>
           <div className="flex gap-2">
             {editArticle && (
