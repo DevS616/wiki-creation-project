@@ -49,7 +49,7 @@ const AdminPanel = () => {
     loadData();
   }, []);
 
-  const checkAuth = () => {
+  const checkAuth = async () => {
     const token = localStorage.getItem('admin_token');
     const userStr = localStorage.getItem('admin_user');
     if (!token || !userStr) { navigate('/adm'); return; }
@@ -58,6 +58,25 @@ const AdminPanel = () => {
       setCurrentUser(user);
     } catch {
       navigate('/adm');
+      return;
+    }
+
+    // Подтягиваем актуальную роль с сервера (localStorage мог устареть)
+    try {
+      const res = await fetch(`${API_URL}?action=me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          localStorage.setItem('admin_user', JSON.stringify(data.user));
+          setCurrentUser(data.user);
+        }
+      } else if (res.status === 401) {
+        handleLogout();
+      }
+    } catch (err) {
+      console.error('Failed to refresh user:', err);
     }
   };
 

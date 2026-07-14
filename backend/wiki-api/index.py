@@ -24,6 +24,8 @@ def handler(event: dict, context) -> dict:
         return handle_upload_image(method, event)
     elif action == 'hosting_images':
         return handle_hosting_images(method, event)
+    elif action == 'me':
+        return handle_me(method, event)
     
     return cors_response(404, {'error': 'Not found'})
 
@@ -590,6 +592,16 @@ def handle_hosting_images(method: str, event: dict) -> dict:
     finally:
         cur.close()
         conn.close()
+
+
+def handle_me(method: str, event: dict) -> dict:
+    """Возвращает актуальные данные текущего пользователя (роль и т.д.) из БД"""
+    if method != 'GET':
+        return cors_response(405, {'error': 'Method not allowed'})
+    user = validate_user(event)
+    if not user:
+        return cors_response(401, {'error': 'Unauthorized'})
+    return cors_response(200, {'user': user})
 
 
 def validate_user(event: dict) -> dict:
