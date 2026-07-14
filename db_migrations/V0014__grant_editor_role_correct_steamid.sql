@@ -1,0 +1,1 @@
+UPDATE users SET role = 'editor', updated_at = CURRENT_TIMESTAMP WHERE id = 9 AND steam_id = '76561198817115574';
