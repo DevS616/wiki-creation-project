@@ -26,6 +26,8 @@ def handler(event: dict, context) -> dict:
         return handle_hosting_images(method, event)
     elif action == 'me':
         return handle_me(method, event)
+    elif action == 'draft':
+        return handle_draft(method, event)
     
     return cors_response(404, {'error': 'Not found'})
 
@@ -589,6 +591,84 @@ def handle_hosting_images(method: str, event: dict) -> dict:
 
         return cors_response(405, {'error': 'Method not allowed'})
 
+    finally:
+        cur.close()
+        conn.close()
+
+
+def handle_draft(method: str, event: dict) -> dict:
+    """Черновик статьи, привязанный к пользователю (для восстановления после сбоя браузера)"""
+    user = validate_user(event)
+    if not user:
+        return cors_response(403, {'error': 'Authentication required'})
+
+    query = event.get('queryStringParameters') or {}
+    raw_article_id = query.get('article_id')
+    article_id = int(raw_article_id) if raw_article_id and raw_article_id != 'new' else None
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        if method == 'GET':
+            if article_id is None:
+                cur.execute(
+                    """SELECT id, article_id, title, description, content, preview_image, category_ids, is_hidden, updated_at
+                       FROM article_drafts WHERE user_id = %s AND article_id IS NULL""",
+                    (user['id'],)
+                )
+            else:
+                cur.execute(
+                    """SELECT id, article_id, title, description, content, preview_image, category_ids, is_hidden, updated_at
+                       FROM article_drafts WHERE user_id = %s AND article_id = %s""",
+                    (user['id'], article_id)
+                )
+            row = cur.fetchone()
+            if not row:
+                return cors_response(200, {'draft': None})
+            return cors_response(200, {'draft': {
+                'article_id': row[1],
+                'title': row[2],
+                'description': row[3],
+                'content': row[4],
+                'preview_image': row[5],
+                'category_ids': row[6],
+                'is_hidden': row[7],
+                'updated_at': row[8].isoformat() if row[8] else None,
+            }})
+
+        elif method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            draft_article_id = body.get('article_id')
+            title = body.get('title', '')
+            description = body.get('description', '')
+            content = body.get('content', '')
+            preview_image = body.get('preview_image')
+            category_ids = json.dumps(body.get('category_ids', []))
+            is_hidden = body.get('is_hidden', False)
+
+            if draft_article_id is None:
+                cur.execute("DELETE FROM article_drafts WHERE user_id = %s AND article_id IS NULL", (user['id'],))
+            else:
+                cur.execute("DELETE FROM article_drafts WHERE user_id = %s AND article_id = %s", (user['id'], draft_article_id))
+
+            cur.execute(
+                """INSERT INTO article_drafts (user_id, article_id, title, description, content, preview_image, category_ids, is_hidden)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (user['id'], draft_article_id, title, description, content, preview_image, category_ids, is_hidden)
+            )
+            conn.commit()
+            return cors_response(200, {'success': True})
+
+        elif method == 'DELETE':
+            if article_id is None:
+                cur.execute("DELETE FROM article_drafts WHERE user_id = %s AND article_id IS NULL", (user['id'],))
+            else:
+                cur.execute("DELETE FROM article_drafts WHERE user_id = %s AND article_id = %s", (user['id'], article_id))
+            conn.commit()
+            return cors_response(200, {'success': True})
+
+        return cors_response(405, {'error': 'Method not allowed'})
     finally:
         cur.close()
         conn.close()

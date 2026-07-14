@@ -73,19 +73,43 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
     });
   };
 
-  const openEditor = (article?: Article) => {
-    // Проверяем есть ли сохранённый черновик именно для этой статьи (или новой)
-    const draft = loadDraft();
-    const draftMatches = draft && draft.articleId === (article?.id ?? null);
+  const openEditor = async (article?: Article) => {
+    const articleIdParam = article ? String(article.id) : 'new';
+    let serverDraft: Draft | null = null;
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch(`${API_URL}?action=draft&article_id=${articleIdParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.draft) {
+          serverDraft = {
+            articleId: data.draft.article_id,
+            title: data.draft.title,
+            description: data.draft.description,
+            content: data.draft.content,
+            previewImage: data.draft.preview_image || '',
+            categoryIds: (data.draft.category_ids || []).map((id: number) => id.toString()),
+            isHidden: data.draft.is_hidden,
+            savedAt: data.draft.updated_at ? new Date(data.draft.updated_at).getTime() : Date.now(),
+          };
+        }
+      }
+    } catch {
+      // Сервер недоступен — попробуем локальный черновик
+      serverDraft = loadDraft();
+      if (serverDraft && serverDraft.articleId !== (article?.id ?? null)) serverDraft = null;
+    }
 
-    if (draftMatches && draft && confirm('Найден несохранённый черновик этой статьи. Восстановить его?')) {
+    if (serverDraft && confirm('Найден несохранённый черновик этой статьи. Восстановить его?')) {
       setEditArticle(article || null);
-      setTitle(draft.title);
-      setDescription(draft.description);
-      setArticleContent(draft.content);
-      setPreviewImage(draft.previewImage);
-      setSelectedCategoryIds(draft.categoryIds);
-      setIsHidden(draft.isHidden);
+      setTitle(serverDraft.title);
+      setDescription(serverDraft.description);
+      setArticleContent(serverDraft.content);
+      setPreviewImage(serverDraft.previewImage);
+      setSelectedCategoryIds(serverDraft.categoryIds);
+      setIsHidden(serverDraft.isHidden);
     } else if (article) {
       setEditArticle(article);
       setTitle(article.title);
@@ -94,7 +118,7 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setPreviewImage(article.preview_image || '');
       setSelectedCategoryIds(article.category_ids?.map(id => id.toString()) || []);
       setIsHidden(article.is_hidden || false);
-      clearDraft();
+      clearDraft(article.id);
     } else {
       setEditArticle(null);
       setTitle('');
@@ -103,15 +127,15 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       setPreviewImage('');
       setSelectedCategoryIds([]);
       setIsHidden(false);
-      clearDraft();
+      clearDraft(null);
     }
     setIsEditorOpen(true);
   };
 
   const closeEditor = () => {
     setIsEditorOpen(false);
+    clearDraft(editArticle?.id ?? null);
     setEditArticle(null);
-    clearDraft();
   };
 
   const loadDraft = (): Draft | null => {
@@ -123,14 +147,22 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
     }
   };
 
-  const clearDraft = () => {
+  const clearDraft = (articleId: number | null) => {
     localStorage.removeItem(DRAFT_KEY);
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    const param = articleId === null ? 'new' : String(articleId);
+    fetch(`${API_URL}?action=draft&article_id=${param}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
   };
 
-  // Автосохранение черновика при любых изменениях в открытом редакторе
+  // Мгновенное сохранение в браузер + сохранение на сервере с задержкой (защита от закрытия вкладки и смены устройства)
   useEffect(() => {
     if (!isEditorOpen) return;
     if (!title.trim() && !description.trim() && !articleContent.trim()) return;
+
     const draft: Draft = {
       articleId: editArticle?.id ?? null,
       title,
@@ -142,6 +174,26 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
       savedAt: Date.now(),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+
+    const timer = setTimeout(() => {
+      const token = localStorage.getItem('admin_token');
+      if (!token) return;
+      fetch(`${API_URL}?action=draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          article_id: draft.articleId,
+          title: draft.title,
+          description: draft.description,
+          content: draft.content,
+          preview_image: draft.previewImage,
+          category_ids: draft.categoryIds.map(id => parseInt(id)),
+          is_hidden: draft.isHidden,
+        }),
+      }).catch(() => {});
+    }, 2000);
+
+    return () => clearTimeout(timer);
   }, [isEditorOpen, editArticle, title, description, articleContent, previewImage, selectedCategoryIds, isHidden]);
 
   // Предупреждаем перед закрытием/перезагрузкой вкладки, если есть несохранённые правки
@@ -179,7 +231,6 @@ const ArticlesTab = ({ articles, categories, canEdit, canDelete, loadData }: Art
         alert(`Ошибка: ${data.error || res.statusText}`);
         return;
       }
-      clearDraft();
       closeEditor();
       loadData();
     } catch (e) {

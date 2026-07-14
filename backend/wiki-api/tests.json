@@ -40,6 +40,12 @@
       "expectedStatus": 403
     },
     {
+      "name": "Get draft without auth returns 403",
+      "method": "GET",
+      "path": "/?action=draft",
+      "expectedStatus": 403
+    },
+    {
       "name": "Unknown action returns 404",
       "method": "GET",
       "path": "/?action=unknown",
